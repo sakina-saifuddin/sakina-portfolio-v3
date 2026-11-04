@@ -559,7 +559,7 @@ function buildViews(){
   const fT=anchorFrame(B,[-0.06,0.42,1],1.0,(innerWidth-sideT-60)/innerHeight);
   const fP=anchorFrame(B,[-0.06,0.42,1],1.0,(innerWidth-sideP-60)/innerHeight);
   // Felix's Z, the TV glass filling the view
-  const tv=Math.tan(THREE.MathUtils.degToRad(lensFov()/2)),dz=Math.max(.46,CRT.h/2/(tv*.85),CRT.w/2/(tv*a*.92));
+  const tv=Math.tan(THREE.MathUtils.degToRad(lensFov()/2)),dz=Math.max(.46,CRT.h/2/(tv*.85),CRT.w/2/(tv*a*.8));
   VIEWS={
     home:{target:HOME.target.clone(),pos:HOME.pos.clone()},
     tapes:{...fT,shift:(sideT+40)/2},
@@ -808,7 +808,7 @@ soundBtn.addEventListener("click",async()=>{
 const lofiDlg=$("lofi-dialog");
 lofiBtn.addEventListener("click",()=>{if(!lofiDlg.open)lofiDlg.showModal()});
 $("lofi-stay").addEventListener("click",()=>lofiDlg.close());
-$("lofi-go").addEventListener("click",()=>{location.assign("https://askksakina.netlify.app/about#career-journey")});
+$("lofi-go").addEventListener("click",()=>{location.assign("mobile.html")});
 lofiDlg.addEventListener("keydown",e=>e.stopPropagation());
 lofiDlg.addEventListener("click",e=>{if(e.target===lofiDlg)lofiDlg.close()});
 
@@ -1375,6 +1375,7 @@ function vcrDo(id){
   if(id==="mute"){nudge(crtVideo.toggleMute()?"VIDEO MUTED":"VIDEO SOUND ON");return}
   if(id==="vol"){nudge("VOLUME "+Math.round(crtVideo.cycleVolume()*100)+"%")}
 }
+document.querySelectorAll("[data-vcr]").forEach(b=>b.addEventListener("click",()=>vcrDo(b.dataset.vcr)));
 function vcrKey(e,k){
   if(term.active||padOpen()||creditsOpen()||document.getElementById("crt-gate")||/^(button|a|input)$/i.test(document.activeElement?.tagName||""))return false;
   const m={" ":"pause",e:"eject",m:"mute","[":"prev","]":"next"};
