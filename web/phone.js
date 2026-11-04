@@ -153,8 +153,9 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
       if (st.dir === 0 && !reduced) { const k = (now - st.settle) / 1000; holder.position.y += 0.007 * Math.exp(-k * 9) * Math.abs(Math.sin(k * 22)); }
     } else if (st.mode === "ringing" && !reduced) {
       const k = (now / 1000) % 3.6, on = k < 1.0;
-      holder.position.set(c.x + (on ? 0.0012 * Math.sin(now * 0.09) : 0), c.y + (on ? 0.0006 * Math.abs(Math.sin(now * 0.07)) : 0), c.z);
-      holder.rotation.set(0, 0, on ? 0.02 * Math.sin(now * 0.075) : 0);
+      const w = on ? 1 : 0, f = now * 0.062;
+      holder.position.set(c.x + w * 0.0045 * Math.sin(f * 1.9), c.y + w * (0.0035 * Math.abs(Math.sin(f)) + 0.0015 * Math.abs(Math.sin(f * 2.7))), c.z + w * 0.0025 * Math.sin(f * 1.3));
+      holder.rotation.set(w * 0.035 * Math.sin(f * 1.6), w * 0.06 * Math.sin(f * 1.1), w * 0.075 * Math.sin(f * 1.9));
       ringTone(now);
     }
     keyGlow.material.opacity = st.mode === "down" && !reduced ? 0.25 + 0.2 * Math.sin(now * 0.005) : st.mode === "down" ? 0.35 : 0;

@@ -13,7 +13,7 @@ import {createTapeDeck} from "./tape-deck.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=6";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
-import {createPhone} from "./phone.js?v=5";
+import {createPhone} from "./phone.js?v=6";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -33,7 +33,7 @@ try{
 }
 const PR_FIXED=parseFloat(new URLSearchParams(location.search).get("pr")||"0");
 const COARSE=matchMedia("(pointer:coarse)").matches;
-const PR_CAP=PR_FIXED||Math.min(devicePixelRatio,COARSE?2.25:1.75),PR_FLOOR=COARSE?1.25:1;
+const PR_CAP=PR_FIXED||Math.min(devicePixelRatio,COARSE?1.75:1.75),PR_FLOOR=1;
 let prNow=PR_CAP;
 renderer.setPixelRatio(prNow);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -189,7 +189,7 @@ function heal(m){
   m.needsUpdate=true;
 }
 
-const roomP=new Promise((res,rej)=>loader.load("sakina-room-agx-both.glb",g=>{
+const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.glb":"sakina-room-agx-both.glb",g=>{
   const maxAniso=renderer.capabilities.getMaxAnisotropy();
   g.scene.traverse(o=>{
     if(!o.isMesh)return;
@@ -275,7 +275,7 @@ const roomP=new Promise((res,rej)=>loader.load("sakina-room-agx-both.glb",g=>{
 const outP=new Promise((res,rej)=>loader.load("sakina-outside-r4lo.glb",g=>{g.scene.position.y=-10;scene.add(g.scene);res()},
   e=>{if(e.lengthComputable){progressOut=e.loaded/e.total;setProgress()}},rej));
 
-const VIEW_ZOOM=parseFloat(new URLSearchParams(location.search).get("vz")||"1.7");
+const VIEW_ZOOM=parseFloat(new URLSearchParams(location.search).get("vz")||"2.3");
 // Berlin rail-yard night photo behind the window (round 4, approved): two unlit emissive pictures ~80 m away (photo patch + panorama).
 const viewP=new Promise(res=>loader.load("sakina-view-r4lo.glb",g=>{
   g.scene.traverse(o=>{if(o.isMesh){o.material.side=THREE.DoubleSide;o.material.envMapIntensity=0;o.renderOrder=-1}});
@@ -938,7 +938,7 @@ canvas.addEventListener("pointerup",ev=>{
   else go(hit.kind);
 });
 
-const composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4}));
+const composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:COARSE?2:4}));
 composer.addPass(new RenderPass(scene,camera));
 const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),0.42,0.5,0.93);
 composer.addPass(bloom);

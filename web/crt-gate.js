@@ -13,7 +13,13 @@ if(loader){
 <div class="noise"></div><div class="glass"></div></div>`;
   document.body.prepend(gate);
   // Nothing of the gate shows until its photo is in, so the blue TV screen never appears alone on a black page.
-  const stillSrc=matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=5":"crt-still.jpg?v=5";
+  const PORT=matchMedia("(max-aspect-ratio: 9/16)");
+  const SD={
+    d:{w:1600,h:900,Q:[[609.5,379.1],[903.3,377.1],[901.9,592.9],[612.1,600.1]],BOX:[609,377,295,224]},
+    p:{w:360,h:640,Q:[[115.7,296.1],[215.1,295.3],[214.7,368.7],[116.3,370.9]],BOX:[115,295,101,76]}
+  };
+  let S=PORT.matches?SD.p:SD.d;
+  const stillSrc=PORT.matches?"crt-still-p.jpg?v=1":matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=5":"crt-still.jpg?v=5";
   const reveal=()=>gate.classList.add("shown");
   const img=new Image();img.onload=reveal;img.onerror=reveal;img.src=stillSrc;
   setTimeout(reveal,4000);
@@ -30,14 +36,19 @@ if(loader){
 
   // The glass corners in crt-still.jpg (1600x900): top left, top right, bottom right, bottom left.
   // The screen box is drawn onto them in perspective (Heckbert's unit-square projection).
-  let Q=[[609.5,379.1],[903.3,377.1],[901.9,592.9],[612.1,600.1]],BOX=[609,377,295,224];
+  let Q=S.Q,BOX=S.BOX;
   // The still is a 1600x900 capture of the home view. The 3D camera keeps a fixed vertical field of view (wider only on narrow windows),
   // so the still is scaled by height, with the same lens rule as lensFov() in main-pad.js, and stays the exact view the room loads into.
   const scaleK=()=>{
+    if(PORT.matches)return innerHeight/640;
     const a=innerWidth/innerHeight,t=Math.tan(16*Math.PI/180),h=Math.max(t,Math.min(.46,.29/a)),f=Math.min(1.12,Math.max(1,t*1.3/(h*a)));
     return innerHeight/900*t/h/f;
   };
-  const setK=()=>gate.style.setProperty("--k",scaleK()+"px");
+  const setK=()=>{
+    gate.style.setProperty("--k",scaleK()+"px");
+    gate.style.setProperty("--bx",BOX[0]-S.w/2);gate.style.setProperty("--by",BOX[1]-S.h/2);
+    gate.style.setProperty("--bw",BOX[2]);gate.style.setProperty("--bh",BOX[3]);
+  };
   setK();
   const warp=()=>{
     const k=scaleK(),W=BOX[2]*k,H=BOX[3]*k,
@@ -48,11 +59,12 @@ if(loader){
   };
   const onResize=()=>{setK();warp()};
   warp();addEventListener("resize",onResize);
+  PORT.addEventListener?.("change",()=>{S=PORT.matches?SD.p:SD.d;Q=S.Q;BOX=S.BOX;onResize()});
   // Once the room is showing, follow the TV glass as the 3D camera actually projects it (it no longer matches the still).
   addEventListener("crtquad",e=>{
     if(!gate.classList.contains("ready")||entered)return;
     const k=scaleK();
-    Q=e.detail.map(([x,y])=>[(x-innerWidth/2)/k+800,(y-innerHeight/2)/k+450]);
+    Q=e.detail.map(([x,y])=>[(x-innerWidth/2)/k+S.w/2,(y-innerHeight/2)/k+S.h/2]);
     warp();
   });
 
