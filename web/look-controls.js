@@ -64,7 +64,7 @@ export class LookControls {
                     polarMin: Math.max(PRESET_LIMITS.polarMin, this._polar0 - PRESET_LIMITS.polarSpan) - this._polar0,
                     polarMax: Math.min(PRESET_LIMITS.polarMax, this._polar0 + PRESET_LIMITS.polarSpan) - this._polar0 };
     }
-    if (!home) this._dollyLim = DOLLY_PRESET; else this._dollyLim = HOME_LIMITS.dolly;
+    if (!home) this._dollyLim = DOLLY_PRESET; else this._dollyLim = innerWidth / innerHeight < 0.9 ? [0.5, 1.0] : HOME_LIMITS.dolly;
     this._az = this._gAz = 0; this._polar = this._gPolar = 0; this._dolly = this._gDolly = 1;
   }
 

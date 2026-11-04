@@ -13,7 +13,7 @@ if(loader){
 <div class="noise"></div><div class="glass"></div></div>`;
   document.body.prepend(gate);
   // Nothing of the gate shows until its photo is in, so the blue TV screen never appears alone on a black page.
-  const stillSrc=matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=4":"crt-still.jpg?v=4";
+  const stillSrc=matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=5":"crt-still.jpg?v=5";
   const reveal=()=>gate.classList.add("shown");
   const img=new Image();img.onload=reveal;img.onerror=reveal;img.src=stillSrc;
   setTimeout(reveal,4000);
@@ -30,12 +30,12 @@ if(loader){
 
   // The glass corners in crt-still.jpg (1600x900): top left, top right, bottom right, bottom left.
   // The screen box is drawn onto them in perspective (Heckbert's unit-square projection).
-  let Q=[[637.1,389.4],[888.6,387.5],[887.6,572.8],[639.1,578.6]],BOX=[637,388,251,188];
+  let Q=[[609.5,379.1],[903.3,377.1],[901.9,592.9],[612.1,600.1]],BOX=[609,377,295,224];
   // The still is a 1600x900 capture of the home view. The 3D camera keeps a fixed vertical field of view (wider only on narrow windows),
   // so the still is scaled by height, with the same lens rule as lensFov() in main-pad.js, and stays the exact view the room loads into.
   const scaleK=()=>{
-    const a=innerWidth/innerHeight,t=Math.tan(16*Math.PI/180),h=Math.max(t,Math.min(.62,.29/a));
-    return innerHeight/900*t/h;
+    const a=innerWidth/innerHeight,t=Math.tan(16*Math.PI/180),h=Math.max(t,Math.min(.46,.29/a)),f=Math.min(1.12,Math.max(1,t*1.3/(h*a)));
+    return innerHeight/900*t/h/f;
   };
   const setK=()=>gate.style.setProperty("--k",scaleK()+"px");
   setK();

@@ -118,3 +118,5 @@ html:not([data-view="ibm"]):not([data-view="desk"]):not([data-view="outside"]):n
   #pad-close{top:calc(60px + env(safe-area-inset-top,0px));right:16px}
   .panel{top:auto!important;bottom:calc(176px + env(safe-area-inset-bottom,0px))!important;left:12px!important;right:12px!important;max-height:38vh!important;width:auto!important;transform:none!important}
 }
+
+.menu button,.menu a{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;vertical-align:top}

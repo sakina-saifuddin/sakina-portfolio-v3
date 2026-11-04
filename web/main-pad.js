@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {LookControls} from "./look-controls.js?v=19";
+import {LookControls} from "./look-controls.js?v=20";
 import {createSfx} from "./sfx.js?v=5";
 import {createNotebook} from "./notebook.js?v=6";
 import {createFrames} from "./frames.js?v=4";
@@ -32,7 +32,8 @@ try{
   throw new Error("WebGL unavailable");
 }
 const PR_FIXED=parseFloat(new URLSearchParams(location.search).get("pr")||"0");
-const PR_CAP=PR_FIXED||Math.min(devicePixelRatio,1.75);
+const COARSE=matchMedia("(pointer:coarse)").matches;
+const PR_CAP=PR_FIXED||Math.min(devicePixelRatio,COARSE?2.25:1.75),PR_FLOOR=COARSE?1.25:1;
 let prNow=PR_CAP;
 renderer.setPixelRatio(prNow);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -44,12 +45,12 @@ const scene=new THREE.Scene();
 // Framing follows felixrieseberg.com: a 32 degree lens (wider only on narrow windows) and a home view that looks at the TV centre
 // from 1.75 m, slightly left of and above its axis (his FRAMES.home: dir -0.13, 0.1, 1).
 const FOV=32;
-const lensFov=()=>{const a=innerWidth/innerHeight,tv=Math.tan(THREE.MathUtils.degToRad(FOV/2));return THREE.MathUtils.radToDeg(2*Math.atan(Math.max(tv,Math.min(.62,.29/a))))};
+const lensFov=()=>{const a=innerWidth/innerHeight,tv=Math.tan(THREE.MathUtils.degToRad(FOV/2));return THREE.MathUtils.radToDeg(2*Math.atan(Math.max(tv,Math.min(.46,.29/a))))};
 const camera=new THREE.PerspectiveCamera(lensFov(),1,0.05,7000);
 const TV0=new THREE.Vector3(-0.02,1.01,-2.0935);
 function homeFrame(){
   const a=innerWidth/innerHeight,tv=Math.tan(THREE.MathUtils.degToRad(lensFov()/2));
-  const d=1.75*Math.max(1,Math.tan(THREE.MathUtils.degToRad(FOV/2))*1.3/(tv*a));
+  const d=(COARSE?1.75:1.5)*Math.min(1.12,Math.max(1,Math.tan(THREE.MathUtils.degToRad(FOV/2))*1.3/(tv*a)));
   const t=TV0.clone().add(new THREE.Vector3(0.04,0.036,0));
   return {target:t,pos:t.clone().add(new THREE.Vector3(-0.13,0.1,1).normalize().multiplyScalar(d))};
 }
@@ -195,6 +196,7 @@ const roomP=new Promise((res,rej)=>loader.load("sakina-room-agx-both.glb",g=>{
     meshes[o.name]=o;
     const m=o.material;
     if(m.emissiveMap){m.emissiveMap.anisotropy=Math.min(8,maxAniso)}
+    if(m.map){m.map.anisotropy=Math.min(16,maxAniso)}
     if(o.name==="Room_Tapes"){
       // Muted, darker plastic only inside the 13 tape boxes (the same mesh also holds the phone, papers, floppy and recorder).
       const TS=new URLSearchParams(location.search).get("tape");const sat=TS!==null?parseFloat(TS):0.52;
@@ -310,7 +312,7 @@ const crtGlass=(()=>{
         vec2 d=(vUv-hp)*vec2(2.3,3.6);float hl=exp(-dot(d,d)*2.2)*0.06;
         float fres=pow(1.0-clamp(dot(normalize(vN),normalize(vV)),0.0,1.0),3.0)*0.10;
         vec3 add=vec3(1.0,0.84,0.64)*(hl+fres)+vec3(0.75,0.82,1.0)*roll*0.018;
-        float a=clamp(lines*0.06+vig,0.0,0.8)+0.006*sin(uTime*47.0);
+        float a=clamp(vig,0.0,0.8)+0.006*sin(uTime*47.0);
         gl_FragColor=vec4(add,a);
       }`
   });
@@ -936,9 +938,9 @@ canvas.addEventListener("pointerup",ev=>{
   else go(hit.kind);
 });
 
-const composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:2}));
+const composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4}));
 composer.addPass(new RenderPass(scene,camera));
-const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),0.7,0.6,0.88);
+const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),0.42,0.5,0.93);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 // The colour grade, tint, vignette and film grain, done in one pass here. They used to be a CSS filter, two blend layers and a canvas
@@ -955,8 +957,8 @@ const gradePass=new ShaderPass(new THREE.ShaderMaterial({uniforms:{tDiffuse:{val
     void main(){
       vec3 c=texture2D(tDiffuse,vUv).rgb;
       c=clamp(vec3(c.r+0.012,pow(max(c.g,0.0),1.03)+0.010,c.b+0.016),0.0,1.0);
-      float l=dot(c,vec3(0.2126,0.7152,0.0722));c=clamp(mix(vec3(l),c,1.08),0.0,1.0);
-      c=clamp((c-0.5)*0.97+0.5,0.0,1.0);c=clamp(c*1.08,0.0,1.0);
+      float l=dot(c,vec3(0.2126,0.7152,0.0722));c=clamp(mix(vec3(l),c,0.96),0.0,1.0);
+      c=clamp((c-0.5)*0.97+0.5,0.0,1.0);c=clamp(c*1.02,0.0,1.0);
       float g=clamp((1.0-vUv.y)/0.7,0.0,1.0);
       vec3 tc=mix(vec3(40.0,50.0,120.0),vec3(255.0,150.0,60.0),g)/255.0;
       c=mix(c,softLight(c,tc),mix(0.30,0.12,g)*uTint);
@@ -983,7 +985,7 @@ function adaptRes(now){
   if(crtVideo.active&&prNow<1){prNow=Math.min(PR_CAP,1);setBuffers();slowT=0;return}
   emaDt+=(dt-emaDt)*0.06;
   if(emaDt>24){slowT+=dt;fastT=0}else if(emaDt<15){fastT+=dt;slowT=0}else{slowT=0;fastT=0}
-  if(slowT>1200&&prNow>(crtVideo.active?1:0.72)){prNow=Math.max(crtVideo.active?1:0.72,prNow-0.2);slowT=0;emaDt=16.7;setBuffers()}
+  if(slowT>1200&&prNow>(Math.max(PR_FLOOR,crtVideo.active?1:0))){prNow=Math.max(Math.max(PR_FLOOR,crtVideo.active?1:0),prNow-0.2);slowT=0;emaDt=16.7;setBuffers()}
   else if(fastT>8000&&prNow<PR_CAP){prNow=Math.min(PR_CAP,prNow+0.15);fastT=0;setBuffers()}
 }
 function resize(){
@@ -1137,12 +1139,14 @@ const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`uniform sampler2D uVid;uniform float uK,uNs,uTime;varying vec2 vUv;
     float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+    // The films carry a baked 2-pixel scanline pattern. A [1 2 1] vertical filter cancels it exactly.
+    vec3 T(vec2 o){vec2 py=vec2(0.,1./480.);return (texture2D(uVid,vUv+o+py).rgb+texture2D(uVid,vUv+o-py).rgb+2.*texture2D(uVid,vUv+o).rgb)*.25;}
     void main(){
       vec2 sz=vec2(${(CRT.w*VW).toFixed(4)},${(CRT.h*VH).toFixed(4)});vec2 q=(vUv-.5)*sz;float r=.02;
       float d=length(max(abs(q)-sz*.5+r,0.))-r;float mask=smoothstep(.0035,-.0035,d);
       vec2 px=vec2(1./640.,1./480.);
-      vec3 vd=texture2D(uVid,vUv).rgb;
-      vec3 bl=(texture2D(uVid,vUv+vec2(px.x,0.)).rgb+texture2D(uVid,vUv-vec2(px.x,0.)).rgb+texture2D(uVid,vUv+vec2(0.,px.y)).rgb+texture2D(uVid,vUv-vec2(0.,px.y)).rgb)*.25;
+      vec3 vd=T(vec2(0.));
+      vec3 bl=(T(vec2(px.x,0.))+T(vec2(-px.x,0.))+vd*2.)*.25;
       float ed=smoothstep(.05,.22,length(vd-bl));
       vd=mix((vd+bl)*.5,clamp(vd+(vd-bl)*.45,0.,1.),ed);
       vd=max(vd-.012,0.);
@@ -1161,7 +1165,7 @@ const crtVideo=(()=>{
   vidMat.uniforms.uVid.value=tex;
   const blackTex=new THREE.DataTexture(new Uint8Array([0,0,0,255]),1,1);blackTex.needsUpdate=true;
   const buffered=()=>{if(!v.duration||!isFinite(v.duration))return 0;let e=0;for(let i=0;i<v.buffered.length;i++)if(v.buffered.start(i)<=0.6)e=Math.max(e,v.buffered.end(i));return Math.min(1,e/v.duration)};
-  let started=false,armed=true,loadAt=0,shown=0;
+  let started=false,armed=true,loadAt=0,shown=0,unlocked=false;
   let want=0,k=0,burst=0,held=false,cur=-1,last=performance.now(),away=false,userPaused=false;
   const api={onEnd:null,get paused(){return v.paused},get userMuted(){return userMute},get playing(){return cur>=0&&want>0},get active(){return vidMat.uniforms.uK.value>0.01||vidMat.uniforms.uNs.value>0.01}};
   v.addEventListener("ended",()=>{const done=cur;want=0;burst=1;api.onEnd?.(done)});
@@ -1172,6 +1176,12 @@ const crtVideo=(()=>{
       cur=i;started=false;armed=go;shown=0;loadAt=performance.now();
       k=1;burst=0;vidMat.uniforms.uVid.value=blackTex;vidMat.uniforms.uK.value=1;vidMat.uniforms.uNs.value=0;crtScreen.mesh.visible=false;
       v.pause();v.src=VIDEOS[i];v.muted=muted();want=1;userPaused=false;
+    },
+    // Phones allow sound only on a media element a tap has already played, so the first tap plays and pauses it silently.
+    unlock(){
+      if(unlocked)return;unlocked=true;if(cur>=0)return;
+      v.muted=false;v.src=VIDEOS[11]||VIDEOS[0];
+      const pr=v.play();if(pr)pr.then(()=>{if(cur<0){v.pause();v.removeAttribute("src");v.load()}}).catch(()=>{});
     },
     arm(i){if(cur===i)armed=true},
     stop(){if(cur<0)return;want=0;burst=started?1:0;k=0},
@@ -1189,7 +1199,8 @@ const crtVideo=(()=>{
         shown+=(target-shown)*Math.min(1,dt*5);
         if(!held&&!away&&armed&&(v.readyState>=4||(v.readyState>=3&&performance.now()-loadAt>2500))){
           started=true;vidMat.uniforms.uVid.value=tex;v.currentTime=0;burst=0.5;
-          v.play().catch(e=>console.warn("video blocked",e));
+          v.muted=true;
+          v.play().then(()=>{v.muted=muted()}).catch(e=>console.warn("video blocked",e));
         }
       }
       const ready=(started?v.readyState>=2:true)&&!held;
@@ -1237,6 +1248,7 @@ function setupTapes(){
     onInsert:i=>{if(!onComputer())sfx.insert();if(i!==undefined)crtVideo.play(i,false)},onInserted:i=>{osd.show(i);if(deck.inVcr===i&&deck.target===i)crtVideo.arm(i)},
     onEject:()=>{if(!onComputer())sfx.eject()},onEjected:()=>{crtVideo.stop()}});
   crtVideo.onEnd=playNext;
+for(const ev of ["touchend","click","keydown"])addEventListener(ev,()=>crtVideo.unlock(),{once:true,capture:true});
   logoMeshes.forEach(([mesh,name])=>deck.adoptLogo(mesh,name));
   addIntroTape(matFor);
   try{phone=createPhone({source:src,scene,reduced,soundOn:()=>soundBtn.getAttribute("aria-pressed")==="true",onState:m=>{if(m==="speaker")phoneQuiet=true}});if(phone)buildViews()}catch(e){console.warn("phone failed",e)}
