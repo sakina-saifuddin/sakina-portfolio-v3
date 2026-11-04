@@ -805,11 +805,12 @@ soundBtn.addEventListener("click",async()=>{
   await audio.setRain(on);
   soundBtn.textContent=on?"SOUND ON":"SOUND OFF";soundBtn.setAttribute("aria-pressed",String(on));
 });
-lofiBtn.addEventListener("click",async()=>{
-  const on=!audio.lofiOn;
-  await audio.setLofi(on);
-  lofiBtn.setAttribute("aria-pressed",String(on));
-});
+const lofiDlg=$("lofi-dialog");
+lofiBtn.addEventListener("click",()=>{if(!lofiDlg.open)lofiDlg.showModal()});
+$("lofi-stay").addEventListener("click",()=>lofiDlg.close());
+$("lofi-go").addEventListener("click",()=>{location.assign("https://askksakina.netlify.app/about#career-journey")});
+lofiDlg.addEventListener("keydown",e=>e.stopPropagation());
+lofiDlg.addEventListener("click",e=>{if(e.target===lofiDlg)lofiDlg.close()});
 
 
 function moveHint(h,ev){
@@ -852,7 +853,7 @@ function tipFor(el){
     case"btn-credits":return "CLICK TO SEE THE CREDITS";
     case"back":return "CLICK TO GO BACK TO THE DESK · ESC";
     case"btn-sound":return audio.rainOn?"CLICK TO TURN THE RAIN SOUND OFF":"CLICK TO TURN THE RAIN SOUND ON";
-    case"btn-lofi":return audio.lofiOn?"CLICK TO STOP THE LO-FI MUSIC":"CLICK TO PLAY LO-FI MUSIC";
+    case"btn-lofi":return "CLICK TO SWITCH TO THE LO-FI VERSION";
   }
   const t=b.textContent.trim();
   if(t.startsWith("<"))return "CLICK FOR THE PREVIOUS TAPE";
@@ -942,10 +943,10 @@ composer.addPass(bloom);
 composer.addPass(new OutputPass());
 // The colour grade, tint, vignette and film grain, done in one pass here. They used to be a CSS filter, two blend layers and a canvas
 // refilled 12 times a second, which made the browser re-composite the whole page on every frame.
-const gradeU={uTime:{value:0},uTint:{value:1}};
+const gradeU={uTime:{value:0},uTint:{value:1},uGrain:{value:1}};
 const gradePass=new ShaderPass(new THREE.ShaderMaterial({uniforms:{tDiffuse:{value:null},...gradeU},
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-  fragmentShader:`uniform sampler2D tDiffuse;uniform float uTime,uTint;varying vec2 vUv;
+  fragmentShader:`uniform sampler2D tDiffuse;uniform float uTime,uTint,uGrain;varying vec2 vUv;
     float hash(vec2 p){vec3 q=fract(vec3(p.xyx)*0.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
     vec3 softLight(vec3 cb,vec3 cs){
       vec3 d=mix(sqrt(cb),((16.0*cb-12.0)*cb+4.0)*cb,step(cb,vec3(0.25)));
@@ -963,9 +964,9 @@ const gradePass=new ShaderPass(new THREE.ShaderMaterial({uniforms:{tDiffuse:{val
       float va=r<0.55?0.0:r<0.88?0.22*(r-0.55)/0.33:r<1.0?0.22+0.18*(r-0.88)/0.12:0.4;
       c=mix(c,vec3(6.0,3.0,14.0)/255.0,va);
       float n=hash(floor(vUv*vec2(1280.0,720.0))+vec2(floor(uTime*12.0)*37.0,floor(uTime*12.0)*17.0));
-      vec3 gn=vec3(128.0+(n-0.5)*60.0)/255.0*vec3(1.0,0.97,0.9);
+      vec3 gn=vec3(128.0+(n-0.5)*40.0)/255.0*vec3(1.0,0.97,0.9);
       vec3 ov=mix(2.0*c*gn,1.0-2.0*(1.0-c)*(1.0-gn),step(vec3(0.5),c));
-      c=mix(c,ov,0.12);
+      c=mix(c,ov,0.08*uGrain);
       gl_FragColor=vec4(c,1.0);
     }`}));
 composer.addPass(gradePass);
@@ -979,9 +980,10 @@ let emaDt=16.7,lastT=0,slowT=0,fastT=0;
 function adaptRes(now){
   const dt=lastT?now-lastT:16.7;lastT=now;
   if(PR_FIXED||dt>250||document.hidden)return;
+  if(crtVideo.active&&prNow<1){prNow=Math.min(PR_CAP,1);setBuffers();slowT=0;return}
   emaDt+=(dt-emaDt)*0.06;
   if(emaDt>24){slowT+=dt;fastT=0}else if(emaDt<15){fastT+=dt;slowT=0}else{slowT=0;fastT=0}
-  if(slowT>1200&&prNow>0.72){prNow=Math.max(0.72,prNow-0.2);slowT=0;emaDt=16.7;setBuffers()}
+  if(slowT>1200&&prNow>(crtVideo.active?1:0.72)){prNow=Math.max(crtVideo.active?1:0.72,prNow-0.2);slowT=0;emaDt=16.7;setBuffers()}
   else if(fastT>8000&&prNow<PR_CAP){prNow=Math.min(PR_CAP,prNow+0.15);fastT=0;setBuffers()}
 }
 function resize(){
@@ -1016,7 +1018,7 @@ function frame(now){
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
   crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
-  gradeU.uTime.value=reduced?0:now/1000;
+  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
   composer.render();
 }
@@ -1138,7 +1140,10 @@ const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},
     void main(){
       vec2 sz=vec2(${(CRT.w*VW).toFixed(4)},${(CRT.h*VH).toFixed(4)});vec2 q=(vUv-.5)*sz;float r=.02;
       float d=length(max(abs(q)-sz*.5+r,0.))-r;float mask=smoothstep(.0035,-.0035,d);
+      vec2 px=vec2(1./640.,1./480.);
       vec3 vd=texture2D(uVid,vUv).rgb;
+      vec3 bl=(texture2D(uVid,vUv+vec2(px.x,0.)).rgb+texture2D(uVid,vUv-vec2(px.x,0.)).rgb+texture2D(uVid,vUv+vec2(0.,px.y)).rgb+texture2D(uVid,vUv-vec2(0.,px.y)).rgb)*.25;
+      vd=clamp(vd+(vd-bl)*.45,0.,1.);
       vec3 nz=vec3(h(floor(vUv*vec2(160.,120.))+floor(uTime*30.)))*.85;
       gl_FragColor=vec4(mix(vd,nz,uNs),mask*clamp(uK+uNs,0.,1.));
     }`});

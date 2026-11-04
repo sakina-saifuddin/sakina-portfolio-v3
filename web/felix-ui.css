@@ -83,3 +83,12 @@ html:not([data-view="ibm"]):not([data-view="desk"]):not([data-view="outside"]):n
 @media (max-width:1000px){.brand h1{font-size:22px}.menu{gap:2px}.menu button,.menu a{font-size:30px;padding:3px 10px 1px}}
 @media (max-width:720px){.brand h1{font-size:19px}.menu button,.menu a{font-size:25px;padding:2px 8px 0}}
 
+
+#lofi-dialog{position:fixed;inset:0;margin:auto;height:fit-content;border:0;border-radius:14px;padding:1.6rem 1.6rem 1.3rem;width:min(92vw,26rem);background:#fbfaf6;color:#1b1713;box-shadow:0 24px 70px rgba(0,0,0,.5);font-family:var(--display)}
+#lofi-dialog::backdrop{background:rgba(8,5,3,.62)}
+#lofi-dialog h2{margin:0 0 .6rem;font-size:1.35rem;font-weight:800;line-height:1.2}
+#lofi-dialog p{margin:0 0 1.3rem;font-size:1rem;line-height:1.55;color:#4a4339}
+.lofi-actions{display:flex;gap:.7rem;flex-wrap:wrap}
+.lofi-actions button{flex:1 1 9rem;min-height:46px;padding:0 1.1rem;border-radius:999px;font:700 1rem var(--display);cursor:pointer;border:2px solid #1b1713;background:#fbfaf6;color:#1b1713}
+.lofi-actions #lofi-go{background:#1b1713;color:#fbfaf6}
+.lofi-actions button:focus-visible{outline:3px solid #d9631c;outline-offset:2px}
