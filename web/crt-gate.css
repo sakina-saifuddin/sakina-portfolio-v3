@@ -4,7 +4,7 @@ html.crt-gating .brand,html.crt-gating .bar,html.crt-gating #hint{visibility:hid
 @media (min-aspect-ratio:16/9){#crt-gate{background-image:url("crt-still-wide.jpg?v=5");background-size:calc(2100*var(--k)) auto}}
 #crt-gate:not(.shown){visibility:hidden}
 #crt-gate.out{opacity:0;pointer-events:none}
-#crt-gate .scr{position:absolute;left:calc(50% + (637 - 800)*var(--k));top:calc(50% + (388 - 450)*var(--k));width:calc(251*var(--k));height:calc(188*var(--k));border-radius:calc(3*var(--k));overflow:hidden;container-type:size;transform:var(--warp,none)}
+#crt-gate .scr{position:absolute;left:calc(50% + (609 - 800)*var(--k));top:calc(50% + (377 - 450)*var(--k));width:calc(295*var(--k));height:calc(224*var(--k));border-radius:calc(3*var(--k));overflow:hidden;container-type:size;transform:var(--warp,none)}
 #crt-gate .pic{position:absolute;inset:0;font-family:var(--osd);font-size:calc(100cqh/7.4);line-height:1;white-space:nowrap;color:#f4f5ff;background:radial-gradient(115% 100% at 48% 42%,#5d7ddb 0,#4c6ac9 45%,#3a55b3 100%);text-shadow:.07em .07em 0 rgba(4,8,50,.5),0 0 .3em rgba(210,222,255,.35);filter:blur(.3px);animation:cg-flick 3.3s steps(1) infinite}
 #crt-gate .pic::after{content:"";position:absolute;inset:0;background:var(--noise);background-size:128px;opacity:.07;mix-blend-mode:overlay}
 #crt-gate .lb,#crt-gate .ch{position:absolute;top:7.5%;font-size:.6em;letter-spacing:.05em}
@@ -49,5 +49,5 @@ html.crt-gating .brand,html.crt-gating .bar,html.crt-gating #hint{visibility:hid
   #crt-gate{isolation:isolate;background-image:none}
   #crt-gate::before,#crt-gate::after{content:"";position:absolute;z-index:-1}
   #crt-gate::before{inset:-40px;background:url("crt-still.jpg?v=5") 50% 50%/cover no-repeat;filter:blur(28px) brightness(.55)}
-  #crt-gate::after{inset:0;background:url("crt-still.jpg?v=4") 50% 50%/calc(1600*var(--k)) auto no-repeat;-webkit-mask:linear-gradient(transparent calc(50% - 450*var(--k)),#000 calc(50% - 400*var(--k)),#000 calc(50% + 400*var(--k)),transparent calc(50% + 450*var(--k)));mask:linear-gradient(transparent calc(50% - 450*var(--k)),#000 calc(50% - 400*var(--k)),#000 calc(50% + 400*var(--k)),transparent calc(50% + 450*var(--k)))}
+  #crt-gate::after{inset:0;background:url("crt-still.jpg?v=5") 50% 50%/calc(1600*var(--k)) auto no-repeat;-webkit-mask:linear-gradient(transparent calc(50% - 450*var(--k)),#000 calc(50% - 400*var(--k)),#000 calc(50% + 400*var(--k)),transparent calc(50% + 450*var(--k)));mask:linear-gradient(transparent calc(50% - 450*var(--k)),#000 calc(50% - 400*var(--k)),#000 calc(50% + 400*var(--k)),transparent calc(50% + 450*var(--k)))}
 }

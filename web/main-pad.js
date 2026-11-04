@@ -1151,7 +1151,7 @@ const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},
       vd=mix((vd+bl)*.5,clamp(vd+(vd-bl)*.45,0.,1.),ed);
       vd=max(vd-.012,0.);
       vec3 nz=vec3(h(floor(vUv*vec2(160.,120.))+floor(uTime*30.)))*.85;
-      gl_FragColor=vec4(mix(vd,nz,uNs),mask*clamp(uK+uNs,0.,1.));
+      gl_FragColor=vec4(mix(nz,mix(vd,nz,uNs),step(.5,uK)),mask*clamp(uK+uNs,0.,1.));
     }`});
 {const mesh=new THREE.Mesh(new THREE.PlaneGeometry(CRT.w*VW,CRT.h*VH),vidMat);mesh.position.set(CRT.cx,CRT.cy,CRT.z+0.004);vidScene.add(mesh)}
 
@@ -1198,7 +1198,9 @@ const crtVideo=(()=>{
         const target=v.readyState>=4?1:buffered();
         shown+=(target-shown)*Math.min(1,dt*5);
         if(!held&&!away&&armed&&(v.readyState>=4||(v.readyState>=3&&performance.now()-loadAt>2500))){
-          started=true;vidMat.uniforms.uVid.value=tex;v.currentTime=0;burst=0.5;
+          started=true;v.currentTime=0;burst=0.5;
+          {const id=cur,show=()=>{if(cur===id&&started){tex.needsUpdate=true;vidMat.uniforms.uVid.value=tex}};
+           if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(()=>show());setTimeout(show,1200)}
           v.muted=true;
           v.play().then(()=>{v.muted=muted()}).catch(e=>console.warn("video blocked",e));
         }
