@@ -1143,14 +1143,16 @@ const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},
       vec2 px=vec2(1./640.,1./480.);
       vec3 vd=texture2D(uVid,vUv).rgb;
       vec3 bl=(texture2D(uVid,vUv+vec2(px.x,0.)).rgb+texture2D(uVid,vUv-vec2(px.x,0.)).rgb+texture2D(uVid,vUv+vec2(0.,px.y)).rgb+texture2D(uVid,vUv-vec2(0.,px.y)).rgb)*.25;
-      vd=clamp(vd+(vd-bl)*.45,0.,1.);
+      float ed=smoothstep(.05,.22,length(vd-bl));
+      vd=mix((vd+bl)*.5,clamp(vd+(vd-bl)*.45,0.,1.),ed);
+      vd=max(vd-.012,0.);
       vec3 nz=vec3(h(floor(vUv*vec2(160.,120.))+floor(uTime*30.)))*.85;
       gl_FragColor=vec4(mix(vd,nz,uNs),mask*clamp(uK+uNs,0.,1.));
     }`});
 {const mesh=new THREE.Mesh(new THREE.PlaneGeometry(CRT.w*VW,CRT.h*VH),vidMat);mesh.position.set(CRT.cx,CRT.cy,CRT.z+0.004);vidScene.add(mesh)}
 
 // The tape in the recorder plays on the CRT: tracking static, then the picture. When a film ends the next tape in the row loads.
-const VIDEOS=["tmac","dentalx","uh","blutech","softsync","walnut","powerguard","cio","forecast-kitchen","cost-center","gan","intro"].map(n=>"videos/"+n+".mp4?v=5");
+const VIDEOS=["tmac","dentalx","uh","blutech","softsync","walnut","powerguard","cio","forecast-kitchen","cost-center","gan","intro"].map(n=>"videos/"+n+".mp4?v=6");
 const onComputer=()=>term.active||snap?.name==="ibm";
 const PLAY_ORDER=[11,0,1,2,3,4,5,6,7,8,9,10];
 const crtVideo=(()=>{
