@@ -10,8 +10,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&family=VT323&family=Caveat:wght@600&family=Archivo:wdth,wght@62..125,400..900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2016%2016%27%20shape-rendering=%27crispEdges%27%3E%3Crect%20width=%2716%27%20height=%2716%27%20fill=%27%230d0906%27/%3E%3Crect%20x=%271%27%20y=%271%27%20width=%2714%27%20height=%2711%27%20fill=%27%23caa27a%27/%3E%3Crect%20x=%272%27%20y=%272%27%20width=%2712%27%20height=%279%27%20fill=%27%232c43a8%27/%3E%3Crect%20x=%275%27%20y=%273%27%20width=%276%27%20height=%271%27%20fill=%27%23f4f5ff%27/%3E%3Crect%20x=%275%27%20y=%274%27%20width=%271%27%20height=%271%27%20fill=%27%23f4f5ff%27/%3E%3Crect%20x=%275%27%20y=%275%27%20width=%276%27%20height=%271%27%20fill=%27%23f4f5ff%27/%3E%3Crect%20x=%2710%27%20y=%276%27%20width=%271%27%20height=%271%27%20fill=%27%23f4f5ff%27/%3E%3Crect%20x=%275%27%20y=%277%27%20width=%276%27%20height=%271%27%20fill=%27%23f4f5ff%27/%3E%3Crect%20x=%2712%27%20y=%2713%27%20width=%272%27%20height=%271%27%20fill=%27%23e0a04a%27/%3E%3Crect%20x=%274%27%20y=%2713%27%20width=%276%27%20height=%271%27%20fill=%27%23caa27a%27/%3E%3Crect%20x=%2711%27%20y=%279%27%20width=%272%27%20height=%271%27%20fill=%27%23ff5a3c%27/%3E%3C/svg%3E">
+<link rel="preload" as="image" href="crt-still.jpg?v=4" media="(max-aspect-ratio: 16/9)">
+<link rel="preload" as="image" href="crt-still-wide.jpg?v=4" media="(min-aspect-ratio: 16/9)">
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="crt-gate.css?v=5">
+<link rel="stylesheet" href="crt-gate.css?v=6">
 <link rel="stylesheet" href="pad.css">
 <link rel="stylesheet" href="felix-ui.css?v=13">
 <script type="importmap">
@@ -19,7 +21,7 @@
 </script>
 <style>
 .scan{display:none}
-#grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;mix-blend-mode:overlay;opacity:.3}
+#grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;mix-blend-mode:overlay;opacity:.1}
 html[data-view="ibm"] #tint{opacity:.12}
 #vig{position:fixed;inset:0;pointer-events:none;z-index:4;background:radial-gradient(ellipse 75% 70% at 50% 58%,rgba(0,0,0,0) 55%,rgba(6,3,14,.22) 88%,rgba(6,3,14,.4) 100%)}
 #tint{transition:opacity .8s;position:fixed;inset:0;pointer-events:none;z-index:4;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(40,50,120,.30),rgba(255,150,60,.12) 70%)}
@@ -88,8 +90,8 @@ html[data-view="ibm"] #tint{opacity:.12}
 </div>
 
 <div class="scan" aria-hidden="true"></div>
-<script type="module" src="crt-gate.js?v=6"></script>
-<script type="module" src="main-pad.js?v=90"></script>
+<script type="module" src="crt-gate.js?v=7"></script>
+<script type="module" src="main-pad.js?v=92"></script>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="nightgrade" color-interpolation-filters="sRGB">
 <feComponentTransfer><feFuncR type="gamma" amplitude="1.0" exponent="1.0" offset="0.012"/><feFuncG type="gamma" amplitude="1.0" exponent="1.03" offset="0.010"/><feFuncB type="gamma" amplitude="1.0" exponent="1.0" offset="0.016"/></feComponentTransfer></filter></svg>
 <p id="phone-cap" role="status" hidden>&ldquo;Hi. I&rsquo;m Sakina. I&rsquo;m a graduate student at the University of Houston, and this is my portfolio. I work with data, and this is a short summary of me. So far I have six experiences, and five projects, and you can open any of them from the tapes on my desk. Thanks for picking up.&rdquo;</p>

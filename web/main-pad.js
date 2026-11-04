@@ -9,7 +9,7 @@ import {projects,ibm,notepad,credits} from "./content.js";
 import {Ambience} from "./audio.js";
 import {pad} from "./pad-content.js";
 import {makePadTexture,PAD,UNDER,PAD_ROWS,PAD_W,PAD_H} from "./pad-texture.js";
-import {createTapeDeck} from "./tape-deck.js?v=3";
+import {createTapeDeck} from "./tape-deck.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=6";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
@@ -310,7 +310,7 @@ const crtGlass=(()=>{
         vec2 d=(vUv-hp)*vec2(2.3,3.6);float hl=exp(-dot(d,d)*2.2)*0.06;
         float fres=pow(1.0-clamp(dot(normalize(vN),normalize(vV)),0.0,1.0),3.0)*0.10;
         vec3 add=vec3(1.0,0.84,0.64)*(hl+fres)+vec3(0.75,0.82,1.0)*roll*0.018;
-        float a=clamp(lines*0.17+vig,0.0,0.8)+0.006*sin(uTime*47.0);
+        float a=clamp(lines*0.06+vig,0.0,0.8)+0.006*sin(uTime*47.0);
         gl_FragColor=vec4(add,a);
       }`
   });
@@ -963,9 +963,9 @@ const gradePass=new ShaderPass(new THREE.ShaderMaterial({uniforms:{tDiffuse:{val
       float va=r<0.55?0.0:r<0.88?0.22*(r-0.55)/0.33:r<1.0?0.22+0.18*(r-0.88)/0.12:0.4;
       c=mix(c,vec3(6.0,3.0,14.0)/255.0,va);
       float n=hash(floor(vUv*vec2(1280.0,720.0))+vec2(floor(uTime*12.0)*37.0,floor(uTime*12.0)*17.0));
-      vec3 gn=vec3(128.0+(n-0.5)*170.0)/255.0*vec3(1.0,0.97,0.9);
+      vec3 gn=vec3(128.0+(n-0.5)*60.0)/255.0*vec3(1.0,0.97,0.9);
       vec3 ov=mix(2.0*c*gn,1.0-2.0*(1.0-c)*(1.0-gn),step(vec3(0.5),c));
-      c=mix(c,ov,0.3);
+      c=mix(c,ov,0.12);
       gl_FragColor=vec4(c,1.0);
     }`}));
 composer.addPass(gradePass);
@@ -1152,19 +1152,22 @@ const crtVideo=(()=>{
   const v=document.createElement("video");v.playsInline=true;v.preload="auto";v.setAttribute("playsinline","");v.muted=true;
   const tex=new THREE.VideoTexture(v);tex.colorSpace=THREE.NoColorSpace;tex.minFilter=THREE.LinearFilter;tex.generateMipmaps=false;
   vidMat.uniforms.uVid.value=tex;
+  const blackTex=new THREE.DataTexture(new Uint8Array([0,0,0,255]),1,1);blackTex.needsUpdate=true;
   const buffered=()=>{if(!v.duration||!isFinite(v.duration))return 0;let e=0;for(let i=0;i<v.buffered.length;i++)if(v.buffered.start(i)<=0.6)e=Math.max(e,v.buffered.end(i));return Math.min(1,e/v.duration)};
-  let started=false,loadAt=0,shown=0;
+  let started=false,armed=true,loadAt=0,shown=0;
   let want=0,k=0,burst=0,held=false,cur=-1,last=performance.now(),away=false,userPaused=false;
   const api={onEnd:null,get paused(){return v.paused},get userMuted(){return userMute},get playing(){return cur>=0&&want>0},get active(){return vidMat.uniforms.uK.value>0.01||vidMat.uniforms.uNs.value>0.01}};
   v.addEventListener("ended",()=>{const done=cur;want=0;burst=1;api.onEnd?.(done)});
   let userMute=false;
   const muted=()=>soundBtn.getAttribute("aria-pressed")!=="true"||onComputer()||userMute||phoneQuiet;
   Object.assign(api,{
-    play(i){
-      cur=i;started=false;shown=0;loadAt=performance.now();
-      v.pause();v.src=VIDEOS[i];v.muted=muted();want=1;burst=0;userPaused=false;
+    play(i,go=true){
+      cur=i;started=false;armed=go;shown=0;loadAt=performance.now();
+      k=1;burst=0;vidMat.uniforms.uVid.value=blackTex;vidMat.uniforms.uK.value=1;vidMat.uniforms.uNs.value=0;crtScreen.mesh.visible=false;
+      v.pause();v.src=VIDEOS[i];v.muted=muted();want=1;userPaused=false;
     },
-    stop(){if(cur<0)return;want=0;burst=1},
+    arm(i){if(cur===i)armed=true},
+    stop(){if(cur<0)return;want=0;burst=started?1:0;k=0},
     togglePause(){if(cur<0||!want||!started)return null;if(v.paused){userPaused=false;v.play().catch(()=>{})}else{userPaused=true;v.pause()}return !v.paused},
     away(on){away=on;if(on){if(started)v.pause()}else if(cur>=0&&want&&started&&v.paused&&!held&&!userPaused)v.play().catch(()=>{})},
     restart(){if(cur<0||!started)return false;v.currentTime=0;if(v.paused)v.play().catch(()=>{});return true},
@@ -1177,13 +1180,13 @@ const crtVideo=(()=>{
       if(want&&!started&&cur>=0){
         const target=v.readyState>=4?1:buffered();
         shown+=(target-shown)*Math.min(1,dt*5);
-        if(!held&&!away&&v.readyState>=4&&shown>0.97&&performance.now()-loadAt>1200){
+        if(!held&&!away&&armed&&(v.readyState>=4||(v.readyState>=3&&performance.now()-loadAt>2500))){
           started=true;vidMat.uniforms.uVid.value=tex;v.currentTime=0;burst=0.5;
           v.play().catch(e=>console.warn("video blocked",e));
         }
       }
       const ready=(started?v.readyState>=2:true)&&!held;
-      const goal=want&&started&&ready?1:0;
+      const goal=want&&ready?1:0;
       k+=(goal-k)*Math.min(1,dt*(reduced?60:3.2));
       if(!want&&k<0.02&&cur>=0){v.pause();cur=-1}
       burst=Math.max(0,burst-dt/0.75);
@@ -1224,7 +1227,7 @@ function setupTapes(){
     return mt;
   };
   deck=createTapeDeck({source:src,tapes:TAPES,material:matFor,reduced,slow:parseFloat(new URLSearchParams(location.search).get("slow")||"1")||1,
-    onInsert:()=>{if(!onComputer())sfx.insert()},onInserted:i=>{osd.show(i);setTimeout(()=>{if(deck.inVcr===i&&deck.target===i){crtVideo.play(i);}},reduced?0:1300)},
+    onInsert:i=>{if(!onComputer())sfx.insert();if(i!==undefined)crtVideo.play(i,false)},onInserted:i=>{osd.show(i);if(deck.inVcr===i&&deck.target===i)crtVideo.arm(i)},
     onEject:()=>{if(!onComputer())sfx.eject()},onEjected:()=>{crtVideo.stop()}});
   crtVideo.onEnd=playNext;
   logoMeshes.forEach(([mesh,name])=>deck.adoptLogo(mesh,name));

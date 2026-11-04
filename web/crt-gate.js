@@ -12,6 +12,11 @@ if(loader){
 <button type="button" class="snd on" role="switch" aria-checked="true"><span>SOUND</span><b><i class="s-on">ON</i><i class="s-off">OFF</i></b></button></div></div>
 <div class="noise"></div><div class="glass"></div></div>`;
   document.body.prepend(gate);
+  // Nothing of the gate shows until its photo is in, so the blue TV screen never appears alone on a black page.
+  const stillSrc=matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=4":"crt-still.jpg?v=4";
+  const reveal=()=>gate.classList.add("shown");
+  const img=new Image();img.onload=reveal;img.onerror=reveal;img.src=stillSrc;
+  setTimeout(reveal,4000);
 
   const $=s=>gate.querySelector(s);
   const bar=$(".cg-bar i"),pc=$(".pc"),lb=$(".lb"),snd=$(".snd"),enter=$(".enter"),scr=$(".scr");

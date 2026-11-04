@@ -135,7 +135,7 @@ export function createTapeDeck({ source, tapes, material, reduced, slow = 1, onI
       job = { type: "eject", q, curve: pathFor(q), t0: 0, dur: reduced ? 1 : 1500 * slow };
     } else if (target >= 0) {
       const q = parts[target];
-      onInsert?.();
+      onInsert?.(q.idx);
       job = { type: "insert", q, curve: pathFor(q), t0: 0, dur: reduced ? 1 : 2000 * slow };
     }
   }
