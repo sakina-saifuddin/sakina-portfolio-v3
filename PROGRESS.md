@@ -240,3 +240,4 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 
 ## 2026-11-06 — Ringtone quieter
 - Phone ring gain lowered from 0.02 to 0.011 (about 5 dB softer). `phone.js?v=14`.
+- 2026-11-06 — **newversion: bottom-right controls no longer block the scene** (`felix-ui.css?v=27`). `.bar` and its lists/items are `pointer-events:none`; only the buttons (T Tapes, C Use computer, ..., Credits/Sound/Lo-fi) take clicks, so the remote (and anything behind the text) can be clicked next to the controls. Checked on a standalone copy of the bar (gaps hit the canvas, buttons hit buttons); not re-run on the full 3D page or Netlify.

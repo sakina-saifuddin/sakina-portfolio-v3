@@ -164,3 +164,6 @@ html.calc-open .bar .ctrl{display:none}
 #remote-back{position:fixed;z-index:30;right:max(2.4vw,16px);bottom:max(132px,16vh);padding:5px 16px 4px;font-family:var(--osd);font-size:21px;letter-spacing:.06em;line-height:1.2;text-transform:uppercase;color:var(--f-ink);background:rgba(20,18,24,.55);border:1px solid rgba(255,255,255,.22);border-radius:3px;cursor:pointer}
 #remote-back:hover{color:#fff;border-color:rgba(255,255,255,.4)}
 #remote-back[hidden]{display:none}
+/* the bottom-right controls must not block the 3D scene: only the words themselves are clickable, everything around them passes clicks through */
+.bar,.bar ul,.bar li,.bar span{pointer-events:none}
+.bar button,.bar a{pointer-events:auto}
