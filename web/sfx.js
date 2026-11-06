@@ -122,6 +122,11 @@ export function createSfx({ enabled }) {
       click(t, on ? 0.7 : 0.55); tone(t, 0.04, "square", on ? 900 : 700, on ? 420 : 300, 0.12, 2400);
       click(t + 0.05, 0.35); tone(t + 0.03, 0.12, "sine", on ? 240 : 170, 90, 0.14);
     },
+    // a calculator key: a short plastic click, a touch lower and heavier for = and the clear keys
+    calcKey(big = false) {
+      if (!ready()) return; const t = ctx.currentTime + 0.01;
+      click(t, big ? 0.5 : 0.38); tone(t, 0.035, "square", big ? 700 : 950, big ? 380 : 520, big ? 0.12 : 0.09, 2600); hiss(t + 0.045, 0.03, 0.12, "bandpass", 900, 500, 1);
+    },
     // one tick per call, quieter the farther the camera is from the clock
     tick(dist = 1.5) {
       if (!ready() || !clockBuf) return;

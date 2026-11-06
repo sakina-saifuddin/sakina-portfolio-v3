@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=9";
+import {createSfx} from "./sfx.js?v=10";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -648,6 +648,242 @@ function sipMug(){
   nudge(mug.left>0?"AHH. "+mug.left+(mug.left===1?" SIP":" SIPS")+" LEFT":"THAT WAS THE LAST SIP");
 }
 
+// The calculator on the desk. Its baked triangles (body, 25 keys, LCD glass) are cut out of Room_Desk and rebuilt as live meshes with the
+// SAME UVs and a clone of the same material, so at rest it looks exactly like the baked one. A click lifts it off the desk and holds it
+// face-on in front of the camera; every key works (mouse, touch or keyboard) and the LCD digits are drawn live on a canvas over the glass.
+// ESC, a click outside or PUT DOWN sets it back. The numbers stay until the page is reloaded.
+const CALC={cx:-0.67878,cz:-2.07877,y:0.72,yaw:8*Math.PI/180,L:0.122,ZF:0.010,TANS:0.06667,slope:Math.atan(0.06667)};
+const CALC_ROWS=[["MC","MR","M-","M+","÷"],["%","7","8","9","×"],["√","4","5","6","−"],["C","1","2","3","+"],["AC","0","00",".","="]];
+const calc={group:null,body:null,keys:[],byLabel:{},mat:null,base:1,lcd:null,lcdCv:null,lcdTex:null,k:0,dir:0,t0:0,from:0,
+  s:{disp:"31415.92",acc:null,op:null,fresh:true,mem:0,err:false,last:null}};
+const calcScrim=document.createElement("div");calcScrim.id="calc-scrim";calcScrim.hidden=true;
+const calcClose=document.createElement("button");calcClose.type="button";calcClose.id="calc-close";calcClose.textContent="PUT DOWN · ESC";calcClose.hidden=true;
+document.body.append(calcScrim,calcClose);
+const calcOpen=()=>calc.dir===1;
+const calcScene=new THREE.Scene();
+const _cy=new THREE.Vector3(0,1,0),_cq=new THREE.Quaternion(),_cq2=new THREE.Quaternion(),_ce=new THREE.Euler();
+function setupCalc(){
+  const src=meshes.Room_Desk;if(!src||calc.group)return;
+  const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!N||!UV)return;
+  src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+  const c=Math.cos(CALC.yaw),s=Math.sin(CALC.yaw),ia=I.array,keep=[],body=[],keys=Array.from({length:25},()=>[]);
+  const v=new THREE.Vector3();let nCalc=0;
+  for(let t=0;t<ia.length;t+=3){
+    let wx=0,wz=0,wy=0,ux=0,uy=0;
+    for(let k=0;k<3;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);wx+=v.x/3;wy+=v.y/3;wz+=v.z/3;ux+=UV.getX(ia[t+k])/3;uy+=UV.getY(ia[t+k])/3}
+    const dx=wx-CALC.cx,dz=wz-CALC.cz,lx=dx*c+dz*s,lz=-dx*s+dz*c,ly=wy-CALC.y;
+    const mine=(ux>0.696&&ux<0.711&&uy>0.898&&uy<0.917)||(Math.abs(lx)<0.046&&Math.abs(lz)<0.063&&ly>0.0005);
+    if(!mine){keep.push(ia[t],ia[t+1],ia[t+2]);continue}
+    nCalc++;
+    if(Math.abs(lx)<0.036&&lz>-0.046&&lz<-0.025&&ly>0.01963)continue;            // the baked digits "31415.92": dropped, redrawn live
+    const r=Math.round((lz+0.016)/0.0136),cc=Math.round(lx/0.0162);
+    if(r>=0&&r<=4&&cc>=-2&&cc<=2&&Math.abs(lx-cc*0.0162)<0.0081&&Math.abs(lz-(-0.016+r*0.0136))<0.0068&&ly>CALC.ZF+(0.061-lz)*CALC.TANS+0.0002){keys[r*5+cc+2].push(ia[t],ia[t+1],ia[t+2]);continue}
+    body.push(ia[t],ia[t+1],ia[t+2]);
+  }
+  if(nCalc<8000||body.length<300){console.warn("calc: not found",nCalc);return}
+  const mkGeo=idx=>{
+    const n=idx.length,pos=new Float32Array(n*3),nor=new Float32Array(n*3),uvs=new Float32Array(n*2),w=new THREE.Vector3();
+    for(let i=0;i<n;i++){
+      w.fromBufferAttribute(P,idx[i]).applyMatrix4(M);w.x-=CALC.cx;w.y-=CALC.y;w.z-=CALC.cz;w.applyAxisAngle(_cy,CALC.yaw);
+      pos[i*3]=w.x;pos[i*3+1]=w.y;pos[i*3+2]=w.z;
+      w.fromBufferAttribute(N,idx[i]).applyMatrix3(NM).normalize().applyAxisAngle(_cy,CALC.yaw);
+      nor[i*3]=w.x;nor[i*3+1]=w.y;nor[i*3+2]=w.z;uvs[i*2]=UV.getX(idx[i]);uvs[i*2+1]=UV.getY(idx[i]);
+    }
+    const gg=new THREE.BufferGeometry();
+    gg.setAttribute("position",new THREE.BufferAttribute(pos,3));gg.setAttribute("normal",new THREE.BufferAttribute(nor,3));gg.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+    gg.computeBoundingSphere();gg.computeBoundingBox();return gg;
+  };
+  g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+  const mat=src.material;calc.mat=mat;               // the very same material as the baked desk, so the calculator keeps exactly its baked look
+  const grp=new THREE.Group();grp.position.set(CALC.cx,CALC.y,CALC.cz);grp.rotation.y=-CALC.yaw;grp.name="Calculator";
+  const bm=new THREE.Mesh(mkGeo(body),mat);bm.name="CalcBody";bm.castShadow=true;grp.add(bm);calc.body=bm;
+  keys.forEach((tri,i)=>{
+    if(!tri.length)return;const km=new THREE.Mesh(mkGeo(tri),mat);km.name="CalcKey";km.castShadow=true;
+    km.userData.label=CALC_ROWS[Math.floor(i/5)][i%5];km.userData.t0=-1e9;grp.add(km);calc.keys.push(km);calc.byLabel[km.userData.label]=km;
+  });
+  // the LCD digits, drawn on a canvas that lies just above the glass (the glass itself stays baked)
+  const cv=document.createElement("canvas");cv.width=700;cv.height=145;calc.lcdCv=cv;
+  const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;calc.lcdTex=tex;
+  const lm=new THREE.Mesh(new THREE.PlaneGeometry(0.07,0.0145),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,color:0xd8d2c0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  lm.material.color.setScalar(0.74);lm.rotation.x=-Math.PI/2;lm.position.set(0,0.0200,-0.035);lm.renderOrder=2;lm.name="CalcLcd";grp.add(lm);calc.lcd=lm;
+  // Where the calculator stood the baked desk is dark (its contact shadow). A thin patch with the same material re-uses clean texels of the same
+  // plank, shifted 17 cm along the grain, so grain lines run straight through the patch and the desk looks as if nothing stood there.
+  {
+    const hx=0.068,hz=0.085,cr=[[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]].map(([a,b])=>[CALC.cx+a*c-b*s,CALC.cz+a*s+b*c]);
+    const clip=(poly,zc,less)=>{const o=[],inside=q=>less?q[1]<=zc:q[1]>=zc;
+      for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],ia_=inside(a),ib=inside(b);
+        if(ia_)o.push(a);
+        if(ia_!==ib){const tt=(zc-a[1])/(b[1]-a[1]);o.push([a[0]+(b[0]-a[0])*tt,zc])}}
+      return o};
+    const planks=[[clip(cr,-2.0625,true),(x,z)=>[0.4483+(z+2.062)*0.14779,0.6411+(-0.142-(x-0.16))*0.14896]],[clip(cr,-2.0575,false),(x,z)=>[0.3627+(z+2.058)*0.14779,0.4856+(-0.422-(x-0.16))*0.14897]]];
+    const pos=[],uvs=[];
+    for(const [poly,uvf] of planks){
+      for(let i=1;i<poly.length-1;i++){
+        let tri=[poly[0],poly[i],poly[i+1]];
+        // the normal must point up (counter-clockwise seen from above)
+        if(((tri[1][0]-tri[0][0])*(tri[2][1]-tri[0][1])-(tri[2][0]-tri[0][0])*(tri[1][1]-tri[0][1]))<0)tri=[tri[0],tri[2],tri[1]];
+        for(const q of tri){pos.push(q[0],CALC.y+0.0006,q[1]);uvs.push(...uvf(q[0],q[1]))}
+      }
+    }
+    const pg=new THREE.BufferGeometry();pg.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+    pg.setAttribute("normal",new THREE.Float32BufferAttribute(pos.map((_,i)=>i%3===1?1:0),3));pg.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
+    // soft edges: the patch fades out over its last 1.6 cm so no rectangle shows (same shader chain as the desk, plus an alpha mask)
+    const pm=mat.clone(),prev=mat.onBeforeCompile;pm.transparent=true;pm.depthWrite=false;pm.polygonOffset=true;pm.polygonOffsetFactor=-2;pm.polygonOffsetUnits=-2;
+    pm.onBeforeCompile=(sh,r)=>{
+      if(prev)prev.call(mat,sh,r);sh.uniforms.uCalcP={value:new THREE.Vector4(CALC.cx,CALC.cz,c,s)};
+      sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec4 uCalcP;")
+        .replace("#include <emissivemap_fragment>",`#include <emissivemap_fragment>
+        vec2 cd_=vWP3.xz-uCalcP.xy;float clx=cd_.x*uCalcP.z+cd_.y*uCalcP.w,clz=-cd_.x*uCalcP.w+cd_.y*uCalcP.z;
+        diffuseColor.a*=(1.0-smoothstep(0.050,0.066,abs(clx)))*(1.0-smoothstep(0.067,0.083,abs(clz)));`);
+    };
+    pm.customProgramCacheKey=()=>"calc_patch";pm.needsUpdate=true;
+    const patch=new THREE.Mesh(pg,pm);patch.name="CalcPatch";patch.renderOrder=1;scene.add(patch);calc.patch=patch;
+  }
+  scene.add(grp);calc.group=grp;calcDraw();
+  console.log("calc: triangles",nCalc,"body",body.length/3,"keys",calc.keys.length);
+}
+// ---- the LCD ----
+const SEG7={"0":"abcdef","1":"bc","2":"abged","3":"abgcd","4":"fgbc","5":"afgcd","6":"afgedc","7":"abc","8":"abcdefg","9":"abcfgd","-":"g","E":"afged"};
+function calcDraw(){
+  if(!calc.lcdCv)return;
+  const cv=calc.lcdCv,g=cv.getContext("2d"),S=10000,X=x=>(x+0.035)*S,Yp=y=>(0.00725-y)*S;
+  // opaque pale LCD background: it also hides the faint stains of the old baked digits that are left in the glass texels
+  const bg=g.createLinearGradient(0,0,0,cv.height);bg.addColorStop(0,"#cdbf9d");bg.addColorStop(1,"#d9cba7");
+  g.fillStyle=bg;g.fillRect(0,0,cv.width,cv.height);g.fillStyle="rgba(24,28,22,.93)";
+  const rect=(x0,y0,x1,y1)=>g.fillRect(X(x0),Yp(y1),(x1-x0)*S,(y1-y0)*S);
+  const pitch=0.0079,cw=0.0059,ch=0.0098,t=0.00085;
+  const st=calc.s,txt=st.err?"E":st.disp,neg=txt.startsWith("-"),body=neg?txt.slice(1):txt;
+  const cells=[];                       // right to left: {ch, dp}
+  for(let i=body.length-1;i>=0;i--){if(body[i]===".")continue;cells.push({c:body[i],dp:body[i+1]==="."})}
+  cells.forEach((cell,i)=>{
+    const xr=0.031-i*pitch,x0=xr-cw,segs=SEG7[cell.c]||"";
+    const R={a:[x0+t,ch/2-t,xr-t,ch/2],g:[x0+t,-t/2,xr-t,t/2],d:[x0+t,-ch/2,xr-t,-ch/2+t],f:[x0,t/2,x0+t,ch/2-t],b:[xr-t,t/2,xr,ch/2-t],e:[x0,-ch/2+t,x0+t,-t/2],c:[xr-t,-ch/2+t,xr,-t/2]};
+    for(const k of segs){const r=R[k];rect(r[0],r[1],r[2],r[3])}
+    if(cell.dp)rect(xr+0.0005,-ch/2,xr+0.0013,-ch/2+0.0009);
+  });
+  if(neg)rect(-0.0345,-t/2,-0.0318,t/2);
+  if(st.mem!==0){g.font="bold 30px sans-serif";g.fillText("M",X(-0.0345),Yp(0.0058)+20)}
+  calc.lcdTex.needsUpdate=true;
+}
+// ---- the arithmetic (8 digits, like a pocket calculator) ----
+const calcFmt=v=>{
+  if(!isFinite(v)||Math.abs(v)>=1e8)return null;
+  let s=String(parseFloat(v.toPrecision(8)));
+  if(/e/i.test(s))s=v.toFixed(7);
+  const digits=s.replace(/[-.]/g,"").length;
+  if(digits>8){const ip=Math.trunc(Math.abs(v)).toString().length;s=v.toFixed(Math.max(0,8-ip))}
+  if(s.includes("."))s=s.replace(/0+$/,"").replace(/\.$/,"");
+  return s==="-0"?"0":s;
+};
+const calcNum=()=>parseFloat(calc.s.disp)||0;
+function calcShow(v){const f=calcFmt(v);if(f===null){calc.s.err=true;calc.s.disp="0"}else{calc.s.disp=f}}
+function calcApply(a,op,b){return op==="+"?a+b:op==="−"?a-b:op==="×"?a*b:op==="÷"?(b===0?Infinity:a/b):b}
+function calcPress(label){
+  const s=calc.s;
+  if(s.err&&label!=="AC"&&label!=="C")return;
+  if(/^[0-9]$/.test(label)||label==="00"||label==="."){
+    if(s.err)return;
+    if(s.fresh){s.disp=label==="."?"0.":label==="00"?"0":label;s.fresh=false}
+    else{
+      const dg=s.disp.replace(/[-.]/g,"").length;
+      if(label==="."){if(!s.disp.includes("."))s.disp+="."}
+      else if(dg<8){if(s.disp==="0")s.disp=label==="00"?"0":label;else s.disp+=(label==="00"&&dg>6?"0":label)}
+    }
+  }else if(label==="+"||label==="−"||label==="×"||label==="÷"){
+    if(s.op&&!s.fresh){const r=calcApply(s.acc,s.op,calcNum());calcShow(r);s.acc=s.err?null:parseFloat(s.disp)}
+    else s.acc=calcNum();
+    s.op=label;s.fresh=true;
+  }else if(label==="="){
+    if(s.op){const b=s.fresh&&s.last!==null&&s.acc!==null?s.last:calcNum(),r=calcApply(s.acc!==null?s.acc:calcNum(),s.op,b);s.last=b;calcShow(r);s.acc=s.err?null:parseFloat(s.disp);s.fresh=true}
+  }else if(label==="%"){
+    const x=calcNum();let r=x/100;
+    if(s.op&&s.acc!==null&&(s.op==="+"||s.op==="−"))r=s.acc*x/100;
+    calcShow(r);s.fresh=false;
+  }else if(label==="√"){
+    const x=calcNum();if(x<0)s.err=true;else{calcShow(Math.sqrt(x));s.fresh=true}
+  }else if(label==="C"){s.err=false;s.disp="0";s.fresh=true}
+  else if(label==="AC"){Object.assign(s,{disp:"0",acc:null,op:null,fresh:true,err:false,last:null})}
+  else if(label==="MC"){s.mem=0}
+  else if(label==="MR"){calcShow(s.mem);s.fresh=true}
+  else if(label==="M+"){s.mem+=calcNum();s.fresh=true}
+  else if(label==="M-"){s.mem-=calcNum();s.fresh=true}
+  if(label!=="="&&(label==="+"||label==="−"||label==="×"||label==="÷"))s.last=null;
+  calcDraw();
+}
+function calcKey(label){
+  const km=calc.byLabel[label];if(km)km.userData.t0=performance.now();
+  sfx.calcKey(label==="="||label==="AC"||label==="C");
+  calcPress(label);
+}
+const CALC_KEYMAP={"0":"0","1":"1","2":"2","3":"3","4":"4","5":"5","6":"6","7":"7","8":"8","9":"9",".":".",",":".","+":"+","-":"−","*":"×","x":"×","/":"÷","Enter":"=","=":"=","%":"%","c":"C","a":"AC","r":"√","Delete":"C"};
+addEventListener("keydown",e=>{
+  if(!calcOpen()||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key==="Escape"){e.stopImmediatePropagation();e.preventDefault();dropCalc();return}
+  if(e.key==="Backspace"){
+    e.stopImmediatePropagation();e.preventDefault();
+    const s=calc.s;if(!s.fresh&&!s.err){s.disp=s.disp.length>1&&!(s.disp.length===2&&s.disp[0]==="-")?s.disp.slice(0,-1):"0";if(s.disp.endsWith("."))s.disp=s.disp.slice(0,-1)||"0";calcDraw();sfx.calcKey(false)}
+    return;
+  }
+  const lab=CALC_KEYMAP[e.key]||CALC_KEYMAP[e.key.toLowerCase()];
+  e.stopImmediatePropagation();                    // nothing else on the page reacts to typing while the calculator is in your hand
+  if(e.key==="Tab")return;
+  e.preventDefault();if(lab&&!e.repeat)calcKey(lab);
+},true);
+// ---- lift and put back ----
+function openCalc(){
+  if(!calc.group||calcOpen())return;
+  dropPad();notebook?.stop();
+  calcScrim.hidden=false;calcClose.hidden=false;
+  requestAnimationFrame(()=>{calcClose.classList.add("on")});
+  document.documentElement.classList.add("calc-open");
+  calcScene.add(calc.group);calcPass.enabled=true;
+  Object.assign(calc,{dir:1,t0:performance.now(),from:calc.k});
+  $("hint").classList.remove("show");
+}
+function dropCalc(){
+  if(!calcOpen())return;
+  calcClose.classList.remove("on");document.documentElement.classList.remove("calc-open");
+  Object.assign(calc,{dir:-1,t0:performance.now(),from:calc.k});
+}
+const _cf=new THREE.Vector3(),_cr=new THREE.Vector3(),_cu=new THREE.Vector3(),_ctp=new THREE.Vector3(),_ctq=new THREE.Quaternion();
+const _cRx=new THREE.Quaternion(),_cRy=new THREE.Quaternion(),_cX=new THREE.Vector3(1,0,0);
+function stepCalc(now){
+  if(!calc.group)return;
+  // key travel
+  for(const km of calc.keys){const a=(now-km.userData.t0)/170;km.position.y=a<1?-0.0013*Math.sin(Math.PI*Math.min(1,a*1.0)):0}
+  if(!calc.dir)return;
+  const dur=reduced?1:1100,p=Math.min(1,(now-calc.t0)/dur),target=calc.dir>0?1:0,sp=calc.from+(target-calc.from)*p;
+  calc.k=sp<.5?4*sp*sp*sp:1-Math.pow(-2*sp+2,3)/2;
+  camera.updateMatrixWorld();camera.getWorldDirection(_cf);_cr.crossVectors(_cf,camera.up).normalize();_cu.crossVectors(_cr,_cf);
+  const th=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),asp=innerWidth/innerHeight;
+  const D=Math.min(0.9,Math.max(0.2,CALC.L/(0.56*2*th),0.088/(0.74*2*th*asp)));
+  _ctp.copy(camera.position).addScaledVector(_cf,D).addScaledVector(_cr,(2*shiftPx/innerWidth)*D*th*asp).addScaledVector(_cu,0.07*D*th);
+  _cRx.setFromAxisAngle(_cX,Math.PI/2-CALC.slope-0.16);_cRy.setFromAxisAngle(_cy,-0.09);
+  _ctq.copy(camera.quaternion).multiply(_cRy).multiply(_cRx);
+  _cq.setFromAxisAngle(_cy,-CALC.yaw);
+  calc.group.position.lerpVectors(new THREE.Vector3(CALC.cx,CALC.y,CALC.cz),_ctp,calc.k);
+  calc.group.position.y+=Math.sin(Math.PI*calc.k)*0.07;
+  calc.group.quaternion.slerpQuaternions(_cq,_ctq,calc.k);
+  calc.lcd.material.color.setScalar(0.74+0.30*calc.k);
+  if(p>=1){
+    if(calc.dir<0){calc.group.position.set(CALC.cx,CALC.y,CALC.cz);calc.group.quaternion.copy(_cq);calcScrim.hidden=true;scene.add(calc.group);calcPass.enabled=false;calcClose.hidden=true;calc.k=0;calc.dir=0}
+    else calc.t0=-Infinity;
+  }
+}
+const _crc=new THREE.Raycaster(),_crp=new THREE.Vector2();
+function calcHit(ev){
+  if(!calc.group)return null;
+  _crp.set((ev.clientX/innerWidth)*2-1,-(ev.clientY/innerHeight)*2+1);_crc.setFromCamera(_crp,camera);
+  return _crc.intersectObjects([calc.body,...calc.keys],false)[0]||null;
+}
+calcScrim.addEventListener("click",ev=>{
+  if(!calcOpen()||calc.k<0.85)return;
+  const h=calcHit(ev);
+  if(!h)dropCalc();else if(h.object.name==="CalcKey")calcKey(h.object.userData.label);
+});
+calcScrim.addEventListener("pointermove",ev=>{if(calcOpen()&&calc.k>0.85){const h=calcHit(ev);calcScrim.style.cursor=h&&h.object.name==="CalcKey"?"pointer":h?"default":"pointer"}});
+calcClose.addEventListener("click",dropCalc);
+
 // Tape logos: the baked lightmap cannot hold them (each logo quad got a ~140x10 px lightmap island), so they are drawn as
 // textured quads over the baked label windows. Geometry and blend mode come from the Blender scene (pipeline/tools/export_logos.py).
 const LOGO_LIGHT=0.46;
@@ -899,6 +1135,7 @@ canvas.addEventListener("pointermove",e=>{
 
 function go(name){
   if(fly.on)flyStop();
+  if(calcOpen())dropCalc();
   if(name!=="notepad")notebook?.stop();
   if(name!=="pad")dropPad();
   if(name!=="ibm"&&name!=="contact"&&name!=="pcpower")term.setActive(false);
@@ -1171,6 +1408,7 @@ function tipFor3d(h){
     case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
     case"lamp":return "CLICK TO TURN THE "+lamps[h.id].name+(lamps[h.id].on?" OFF":" ON");
+    case"calc":return "CLICK TO USE THE CALCULATOR";
     case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
     case"ibm":return "CLICK TO USE THE COMPUTER";
     case"pad":return "CLICK TO LIFT THE WORK NOTES";
@@ -1234,6 +1472,7 @@ function pick(ev){
   if(notebook)targets.push(...notebook.pickMeshes());
   if(mug.hit)targets.push(mug.hit);
   targets.push(...lampHits);
+  if(calc.group&&!calcOpen())targets.push(calc.body,...calc.keys);
   if(phone)targets.push(...phone.pickMeshes());
   if(callBubble.on)targets.push(callBubble.bubble);
   targets.push(...keysNote.pickMeshes());
@@ -1246,6 +1485,7 @@ function pick(ev){
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
   if(n==="MugHit")return {kind:"mug"};
   if(hit.object.userData.lamp)return {kind:"lamp",id:hit.object.userData.lamp};
+  if(n==="CalcBody"||n==="CalcKey")return {kind:"calc"};
   if(n==="Pad")return {kind:"pad"};
   if(hit.object.userData.notebook)return {kind:"notepad",nav:notebook?.navAt(hit)};
   if(hit.object.userData.vcr)return {kind:"vcr",id:hit.object.userData.vcr};
@@ -1296,6 +1536,7 @@ canvas.addEventListener("pointerup",ev=>{
   else if(hit.kind==="phone")phoneClick(hit.part);
   else if(hit.kind==="mug")sipMug();
   else if(hit.kind==="lamp")toggleLamp(hit.id);
+  else if(hit.kind==="calc")openCalc();
   else go(hit.kind);
 });
 
@@ -1397,7 +1638,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepLamps(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:term.active?0.3:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
@@ -1515,6 +1756,9 @@ const VW=1.075,VH=1.09;
 const vidScene=new THREE.Scene();
 const vidPass=new RenderPass(vidScene,camera);vidPass.clear=false;vidPass.clearDepth=false;vidPass.enabled=false;
 composer.insertPass(vidPass,composer.passes.indexOf(gradePass));
+const calcPass=new RenderPass(calcScene,camera);calcPass.clear=false;calcPass.clearDepth=true;calcPass.enabled=false;
+composer.insertPass(calcPass,composer.passes.indexOf(gradePass));
+{const r=calcPass.render.bind(calcPass);calcPass.render=(...a)=>{const m=calc.mat,b=m.emissiveIntensity;m.emissiveIntensity=b*(1+0.55*calc.k);r(...a);m.emissiveIntensity=b}}
 const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},uNs:{value:0},uTime:{value:0}},transparent:true,depthTest:false,depthWrite:false,
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`uniform sampler2D uVid;uniform float uK,uNs,uTime;varying vec2 vUv;
@@ -1898,6 +2142,7 @@ Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   hideSheet();
   try{setupMug()}catch(e){console.warn("mug failed",e)}
   try{keysNote.attach(meshes.Room_Desk)}catch(e){console.warn("sticky pad failed",e)}
+  try{setupCalc()}catch(e){console.warn("calc failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}
   try{setupWind()}catch(e){console.warn("wind failed",e)}
   try{setupPlant()}catch(e){console.warn("plant failed",e)}

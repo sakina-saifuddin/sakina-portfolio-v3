@@ -146,3 +146,14 @@ html[data-view="notepad"] .bar .ctrl{display:none}
 .note li button:hover{color:#a03a1c}
 .note kbd{flex:none;min-width:1.55em;padding:0 .2em;text-align:center;font:.9em/1.15 var(--osd);color:#2e2610;background:rgba(255,255,255,.4);border:1px solid rgba(46,38,16,.4);border-radius:2px}
 @media (max-width:720px){.note{top:calc(110px + env(safe-area-inset-top,0px));right:12px}}
+
+/* calculator in hand: the bottom row lists its keys instead of the usual ones */
+.bar .keys.calc{display:none}
+html.calc-open .bar .keys:not(.calc){display:none}
+html.calc-open .bar .keys.calc{display:flex}
+html.calc-open #back{display:none}
+@media (max-width:720px){html.calc-open .bar .keys.calc{display:none}}
+html.calc-open .bar .ctrl{display:none}
+.bar .keys.calc{flex-wrap:wrap;max-width:min(980px,92vw)}
+.bar .keys.calc span{font-size:20px}
+@media (min-width:721px){#calc-close{display:none}}
