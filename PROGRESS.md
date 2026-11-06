@@ -143,3 +143,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 ## 2026-11-06 — Louder sip (main-pad.js?v=124, sfx.js?v=7)
 - Sip sound rebuilt much louder (long wet slurp, bubbles, big gulp). While it plays, the CRT video volume ducks to 12% for 1.9 s so the sip is clearly heard, then returns to the previous level.
 - Verified: syntax, page loads, sips still run, no console errors. NOT verified: actual loudness (no audio in cloud).
+
+## 2026-11-06 — Real slurp recording for the mug (main-pad.js?v=125, sfx.js?v=8)
+- Sakina's file (freesound_community, "slurping", 19.6 s) cut into three normalized clips: `web/sfx/sip1.mp3` (1.7 s), `sip2.mp3` (2.4 s), `sip3.mp3` (1.5 s). Each click plays a different clip (random, never the same twice in a row) at slightly varied speed, gain 2.2. CRT video is lowered for exactly the clip length + 0.3 s.
+- The synthesized sip stays as a fallback if the clips are not loaded yet. Empty-mug sound unchanged (synth).
+- Verified: all three clips served 200, decode in Chromium, sip returns the clip duration, no console errors. NOT verified: how it sounds/loudness (no audio in cloud).
+- Credit: Freesound community "slurping" (check the licence on the Freesound page before going to main; credit may be required).

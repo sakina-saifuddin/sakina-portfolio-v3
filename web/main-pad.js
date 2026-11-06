@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=7";
+import {createSfx} from "./sfx.js?v=8";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -546,7 +546,7 @@ function sipMug(){
   if(mug.left<=0){sfx.sip(0);nudge("THE MUG IS EMPTY · RELOAD THE PAGE FOR A REFILL");return}
   mug.left--;
   mug.goal=MUG.floor+MUG.film+(MUG.top-MUG.floor-MUG.film)*mug.left/MUG.sips;
-  sfx.sip(1);crtVideo.duck(1900);
+  crtVideo.duck(Math.round((sfx.sip(1)||1.8)*1000)+300);
   nudge(mug.left>0?"AHH. "+mug.left+(mug.left===1?" SIP":" SIPS")+" LEFT":"THAT WAS THE LAST SIP");
 }
 

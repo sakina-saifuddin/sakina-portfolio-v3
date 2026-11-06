@@ -3,7 +3,7 @@
 const TICKS = [0, 0.45, 0.9, 1.35, 1.8, 2.25];
 
 export function createSfx({ enabled }) {
-  let ctx = null, out = null, soft = null, dest = null, clockBuf = null, loading = null, noise = null, tickN = 0, typedAt = 0;
+  let ctx = null, out = null, soft = null, dest = null, clockBuf = null, sipBufs = [], sipLoading = null, sipLast = -1, loading = null, noise = null, tickN = 0, typedAt = 0;
 
   function ready() {
     if (!enabled()) return false;
@@ -17,6 +17,9 @@ export function createSfx({ enabled }) {
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     if (!clockBuf && !loading) {
       loading = fetch("sfx/clock.mp3").then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(b => { clockBuf = b; }).catch(() => {});
+    }
+    if (!sipLoading) {
+      sipLoading = Promise.all([1, 2, 3].map(n => fetch("sfx/sip" + n + ".mp3?v=1").then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(b => { sipBufs.push(b); }).catch(() => {})));
     }
     return ctx.state !== "closed";
   }
@@ -93,9 +96,17 @@ export function createSfx({ enabled }) {
       click(t, 0.3 + Math.random() * 0.1); tone(t, 0.05, "square", 160 + Math.random() * 50, 90, 0.06, 1100);
     },
     // a sip of coffee: a soft slurp, a few bubbles, a gulp and a small "ahh". sip(0) is the dry sound of an empty mug.
+    // Returns how many seconds the sound lasts (the caller lowers the CRT video for that long).
+    // A real recorded slurp (freesound_community, "slurping") when loaded, the synthesized one as a fallback.
     sip(level = 1) {
-      if (!ready()) return; const t = ctx.currentTime + 0.02;
-      if (level <= 0) { hiss(t, 0.35, 0.3, "bandpass", 1900, 900, 3); tone(t + 0.2, 0.1, "sine", 500, 320, 0.15); return; }
+      if (!ready()) return 0; const t = ctx.currentTime + 0.02;
+      if (level > 0 && sipBufs.length) {
+        let k; do { k = Math.floor(Math.random() * sipBufs.length); } while (sipBufs.length > 1 && k === sipLast); sipLast = k;
+        const s = ctx.createBufferSource(); s.buffer = sipBufs[k]; s.playbackRate.value = 0.96 + Math.random() * 0.08;
+        const g = ctx.createGain(); g.gain.value = 2.2; s.connect(g).connect(out); s.start(t);
+        return sipBufs[k].duration / s.playbackRate.value;
+      }
+      if (level <= 0) { hiss(t, 0.35, 0.3, "bandpass", 1900, 900, 3); tone(t + 0.2, 0.1, "sine", 500, 320, 0.15); return 0.4; }
       // loud, so it is heard over the CRT video: a long wet slurp that rises in pitch, bubbles, a big gulp and an "ahh"
       hiss(t, 0.7, 0.6, "bandpass", 500, 3200, 4.5);
       hiss(t + 0.05, 0.6, 0.25, "highpass", 4000, 2500);
@@ -103,6 +114,7 @@ export function createSfx({ enabled }) {
       for (let i = 0; i < 6; i++) tone(t + 0.12 + i * 0.1 + Math.random() * 0.03, 0.09, "sine", 500 + Math.random() * 500, 240, 0.2);
       tone(t + 0.85, 0.2, "sine", 200, 80, 0.9); tone(t + 1.05, 0.14, "sine", 170, 75, 0.5);
       hiss(t + 1.2, 0.5, 0.2, "lowpass", 1000, 350);
+      return 1.8;
     },
     // one tick per call, quieter the farther the camera is from the clock
     tick(dist = 1.5) {
