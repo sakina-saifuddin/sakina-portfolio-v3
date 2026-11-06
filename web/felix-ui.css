@@ -52,7 +52,7 @@ html[data-view="outside"] .bar .keys,html[data-view="notepad"] .bar .keys,html[d
 .panel .pager button:hover{color:var(--amber)}
 @media (max-width:720px){.brand{left:16px;right:16px}.brand h1{font-size:21px}.menu button,.menu a{font-size:30px;padding:3px 10px 1px}#pad-close{top:calc(110px + env(safe-area-inset-top,0px))}.bar{right:16px}.bar .keys{display:none}}
 
-#phone-cap{position:fixed;left:24px;top:88px;z-index:4;max-width:min(380px,86vw);margin:0;padding:12px 18px;border:1px solid rgba(244,232,210,.22);border-radius:10px;background:rgba(14,10,8,.78);backdrop-filter:blur(6px);color:#f2e6cf;font:14px/1.5 "Courier Prime",ui-monospace,monospace}
+#phone-cap{position:fixed;left:24px;top:88px;z-index:4;max-width:min(380px,86vw);max-height:calc(100vh - 170px);overflow-y:auto;scrollbar-width:none;margin:0;padding:12px 18px;border:1px solid rgba(244,232,210,.22);border-radius:10px;background:rgba(14,10,8,.78);backdrop-filter:blur(6px);color:#f2e6cf;font:14px/1.5 "Courier Prime",ui-monospace,monospace}
 #phone-cap[hidden]{display:none}
 
 html[data-view="ibm"] .bar .keys{display:none}

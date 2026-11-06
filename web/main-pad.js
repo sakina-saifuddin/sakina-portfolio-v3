@@ -13,7 +13,7 @@ import {createTapeDeck} from "./tape-deck.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=8";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
-import {createPhone} from "./phone.js?v=9";
+import {createPhone} from "./phone.js?v=10";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -1964,7 +1964,7 @@ function setupTapes(){
 for(const ev of ["touchend","click","keydown"])addEventListener(ev,()=>crtVideo.unlock(),{once:true,capture:true});
   logoMeshes.forEach(([mesh,name])=>deck.adoptLogo(mesh,name));
   addIntroTape(matFor);
-  try{phone=createPhone({source:src,scene,reduced,soundOn:()=>soundBtn.getAttribute("aria-pressed")==="true",onState:m=>{if(m==="speaker")phoneQuiet=true}});if(phone)buildViews()}catch(e){console.warn("phone failed",e)}
+  try{phone=createPhone({source:src,scene,reduced,soundOn:()=>soundBtn.getAttribute("aria-pressed")==="true",onState:m=>{phoneQuiet=m==="speaker"}});if(phone)buildViews()}catch(e){console.warn("phone failed",e)}
   console.log("tape deck",deck.parts.map(q=>q.holder.children.length).join(","));
 }
 // Twelfth tape: the intro film. It sits on top of the right-hand stack and carries its own spine label.

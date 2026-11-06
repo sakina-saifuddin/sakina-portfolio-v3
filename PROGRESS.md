@@ -207,3 +207,12 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - Colour: the lifted calculator is drawn in an overlay pass that runs after OutputPass, so its colours were not sRGB-encoded and came out too dark. It now encodes itself while lifted; body in hand ≈ (165,147,123) vs (161,144,122) rendered in the room scene, i.e. the same as on the desk.
 - Keys: some long body-plate triangles were assigned to keys (e.g. "4", "6", "0", "AC"), so clicks hit the wrong key (2 did nothing, 8 gave 1). Key triangles must now lie fully inside their own cell. Local test clicking projected key centres: 8,2,5,0,9,1 → display 825091, AC → 0.
 - Verified locally only (software render); not yet on the published preview.
+
+
+## Phone: recorded voice, continuous ring shake (web/phone.js)
+- Sakina's recording (`web/sakina-phone-r2.mp3`, 86 s) plays when the phone is on speaker; the caption bubble scrolls with it.
+- Ringing: the phone shakes continuously with a very quiet ring (`RING_GAIN=0.02`) until picked up; the ring stops on pick-up.
+- Hang up, leaving the phone or the desk view pauses the voice and keeps the position; coming back resumes from there.
+- After the voice ends, picking up and using speaker again restarts the voice and caption from the beginning.
+- Tested headless (SwiftShader): shake, answer, speaker, hang-up pause, resume, leave-to-home pause, end of playback, restart. Not tested: real speakers, real GPU smoothness, touch.
+- Open: caption text is the approved script, not a word-for-word transcript of the recording; graduation month/year not set.
