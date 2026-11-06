@@ -221,3 +221,6 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - Cause of "phone not ringing": the phone started idle once it had been answered in the same tab session (sessionStorage), and reduce-motion disabled both shake and ring tone.
 - Fix: phone always starts ringing on page load; shake is kept under reduce-motion (half amplitude); the ring tone no longer depends on reduce-motion (still needs the sound button on). phone.js v11, main-pad.js v140.
 - Not tested: reduce-motion shake and the published site.
+
+## Phone caption: Sakina's exact words
+- Caption (`SCRIPT` in phone.js and `#phone-cap` in index.html) now uses her exact transcript, including "May 2027"; paragraphs shown via `white-space:pre-line`. phone.js v12, felix-ui.css v25, main-pad.js v141.
