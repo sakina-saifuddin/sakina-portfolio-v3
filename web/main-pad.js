@@ -367,7 +367,7 @@ const crtScreen=(()=>{
   const draw=t=>{
     g.setTransform(1,0,0,1,0,0);g.setTransform(K,0,0,K,0,0);
     if(mode==="loading"&&!document.getElementById("crt-gate")){lastAct=performance.now();setMode("name",lastAct)}
-    if(mode==="name"&&performance.now()-lastAct>6000)setMode("tape",performance.now());
+    if(mode==="name"&&performance.now()-lastAct>12000)setMode("tape",performance.now());
     if(mode==="loading"){
       paintBg(g);osd("▶▶ LOADING",60,82);osd("CH 00",900,82,"right");
       g.font="44px VT323";g.textAlign="left";g.fillStyle="#f4f5ff";
@@ -1169,7 +1169,7 @@ const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},
       vd=mix((vd+bl)*.5,clamp(vd+(vd-bl)*.45,0.,1.),ed);
       vd=max(vd-.012,0.);
       vec3 nz=vec3(h(floor(vUv*vec2(160.,120.))+floor(uTime*30.)))*.85;
-      gl_FragColor=vec4(mix(nz,mix(vd,nz,uNs),step(.5,uK)),mask*clamp(uK+uNs,0.,1.));
+      gl_FragColor=vec4(mix(nz,mix(vd,nz,uNs),step(.5,uK)),mask*smoothstep(0.,.08,clamp(uK+uNs,0.,1.)));
     }`});
 {const mesh=new THREE.Mesh(new THREE.PlaneGeometry(CRT.w*VW,CRT.h*VH),vidMat);mesh.position.set(CRT.cx,CRT.cy,CRT.z+0.004);vidScene.add(mesh)}
 
@@ -1183,7 +1183,7 @@ const crtVideo=(()=>{
   vidMat.uniforms.uVid.value=tex;
   const blackTex=new THREE.DataTexture(new Uint8Array([0,0,0,255]),1,1);blackTex.needsUpdate=true;
   const buffered=()=>{if(!v.duration||!isFinite(v.duration))return 0;let e=0;for(let i=0;i<v.buffered.length;i++)if(v.buffered.start(i)<=0.6)e=Math.max(e,v.buffered.end(i));return Math.min(1,e/v.duration)};
-  let started=false,armed=true,loadAt=0,shown=0,unlocked=false;
+  let started=false,armed=true,loadAt=0,shown=0,unlocked=false,stallT=0;
   let want=0,k=0,burst=0,held=false,cur=-1,last=performance.now(),away=false,userPaused=false;
   const api={onEnd:null,get paused(){return v.paused},get userMuted(){return userMute},get playing(){return cur>=0&&want>0},get active(){return vidMat.uniforms.uK.value>0.01||vidMat.uniforms.uNs.value>0.01}};
   v.addEventListener("ended",()=>{const done=cur;want=0;burst=1;api.onEnd?.(done)});
@@ -1223,14 +1223,15 @@ const crtVideo=(()=>{
           v.play().then(()=>{v.muted=muted()}).catch(e=>console.warn("video blocked",e));
         }
       }
-      const ready=(started?v.readyState>=2:true)&&!held;
+      if(started&&v.readyState<2)stallT+=dt;else stallT=0;
+      const ready=(started?(v.readyState>=2||stallT<0.4):true)&&!held;
       const goal=want&&ready?1:0;
       k+=(goal-k)*Math.min(1,dt*(reduced?60:3.2));
       if(!want&&k<0.02&&cur>=0){v.pause();cur=-1}
       burst=Math.max(0,burst-dt/0.75);
       const ns=reduced?0:Math.sin(Math.min(1,burst)*Math.PI)*0.85*(want?1:Math.max(.4,k));
       vidMat.uniforms.uK.value=k;vidMat.uniforms.uNs.value=ns;vidMat.uniforms.uTime.value=now/1000;
-      osd.fade(k);crtScreen.mesh.visible=k<0.97;
+      osd.fade(k>0.02?1:0);crtScreen.mesh.visible=(k+ns)<0.08;
     }
   });
   return api;
@@ -1306,11 +1307,17 @@ function addIntroTape(matFor){
   }
   q.holder.add(lab);
 }
-addEventListener("crt-enter",()=>setTimeout(()=>{
-  if(!deck||deck.inVcr>=0||crtVideo.playing||padOpen())return;
-  if(!tv.on)setTv(true);
-  crtVideo.play(11);
-},reduced?0:900));
+// After the gate opens the name screen stays up for 10 seconds (counted from when the gate has faded away), then the intro film starts.
+// The film is fetched during that time so it can start the moment the name screen ends.
+const NAME_HOLD=10000,GATE_FADE=1000;
+addEventListener("crt-enter",()=>{
+  try{fetch(VIDEOS[11],{cache:"force-cache"}).then(r=>r.blob()).catch(()=>{})}catch{}
+  setTimeout(()=>{
+    if(!deck||deck.inVcr>=0||crtVideo.playing||padOpen())return;
+    if(!tv.on)setTv(true);
+    crtVideo.play(11);
+  },NAME_HOLD+(reduced?0:GATE_FADE));
+});
 function showTape(idx,{fly=true}={}){
   if(fly&&!padOpen())flyTo("home");
   if(!deck)return;

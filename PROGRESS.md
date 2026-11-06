@@ -91,3 +91,11 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   unfinished page carries on from where the pencil stopped; a page turn in progress is completed instantly when leaving. State lives in memory only, so a
   reload starts fresh. `notebook.js?v=7`, `main-pad.js?v=109`. Tested locally (reduced motion): written TODO page identical before leaving and after returning.
   Not tested: leaving mid-stroke (software rendering is too slow to catch a half-written page), page-2 round trip.
+
+- 2026-11-06 — **newversion: CRT intro timing + ghost screen.** (1) After the gate opens, the name screen (SAKINA SAIFUDDIN) now stays 10 s (counted from
+  when the gate has faded, so 11 s after the click) before the intro film ("At the edge of the dataset") starts; the name->"INSERT TAPE" fallback moved from 6 s to
+  12 s; `videos/intro.mp4` is fetched during the hold so it starts straight away. (2) Ghost screen: the video layer (`vidMat`) was semi-transparent whenever
+  `uK+uNs < 1` (film fading out, static burst, buffering dip right after `currentTime=0`) while the name / INSERT TAPE canvas and the OSD were switched on beneath it
+  (`k<0.97`). Now the layer is opaque as soon as it is visible (`smoothstep(0,.08)`), the screen canvas / OSD only show when the layer is gone, and a buffering
+  dip shorter than 0.4 s no longer fades the picture. `main-pad.js?v=110`. Verified in the cloud: the 11 s timer is registered and the intro file is requested
+  right after Enter; no console errors. NOT verified by eye (software rendering too slow to watch a transition): needs a look on the laptop.
