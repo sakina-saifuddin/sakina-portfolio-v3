@@ -748,7 +748,7 @@ const menuLinks=[...document.querySelectorAll(".menu [data-view]")];let menuCur=
 // moves. A red phone symbol inside it shakes with the handset. Shown only while the phone rings; clicking it answers the phone.
 const callBubble=(()=>{
   // Same look as the CREDITS / SOUND buttons: VT323 capitals, cream ink on a dark translucent panel with a thin light border. Rectangular, short tail.
-  const W=512,H=192,SW=0.40,SH=SW*H/W,TIP=[352,180],ICON=[78,62];
+  const W=512,H=192,SW=0.29,SH=SW*H/W,TIP=[352,180],ICON=[78,62];
   const bc=document.createElement("canvas");bc.width=W;bc.height=H;const x=bc.getContext("2d");
   const draw=()=>{
     x.clearRect(0,0,W,H);x.save();
@@ -775,7 +775,7 @@ const callBubble=(()=>{
   const it=new THREE.CanvasTexture(ic);it.colorSpace=THREE.SRGBColorSpace;
   const mk=(map)=>new THREE.SpriteMaterial({map,transparent:true,depthTest:false,depthWrite:false,toneMapped:false});
   const bubble=new THREE.Sprite(mk(bt));bubble.center.set(TIP[0]/W,1-TIP[1]/H);bubble.scale.set(SW,SH,1);bubble.renderOrder=40;
-  const icon=new THREE.Sprite(mk(it));icon.scale.set(0.075,0.075,1);icon.renderOrder=41;
+  const icon=new THREE.Sprite(mk(it));icon.scale.set(0.054,0.054,1);icon.renderOrder=41;
   bubble.userData.phone="handset";bubble.name="CallBubble";
   bubble.visible=icon.visible=false;scene.add(bubble,icon);
   draw();document.fonts?.load("64px VT323").then(draw).catch(()=>{});document.fonts?.ready.then(draw);
