@@ -346,12 +346,12 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-pad-
   }
   {
     const t=new THREE.TextureLoader().load("sakina-photo.jpg");t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=16;
-    // photo 480x597 (ratio .804). Border 3 mm on every side; card = photo + border. Bigger than before (photo 100 mm wide, was 71.6 mm).
-    const PW=0.100,PHT=PW*597/480,B=0.003,CW=PW+2*B,CH=PHT+2*B,CZ=-1.3585,CY=0.8205+CH/2;
-    const card=new THREE.Mesh(new THREE.PlaneGeometry(CW,CH),new THREE.MeshBasicMaterial({color:0xf4f1ea,depthWrite:false}));
-    card.rotation.y=Math.PI/2;card.position.set(-2.6475,CY,CZ);card.renderOrder=3;card.name="PolaroidCard";scene.add(card);
-    const p=new THREE.Mesh(new THREE.PlaneGeometry(PW,PHT),new THREE.MeshBasicMaterial({map:t,color:0xf2ede4,depthWrite:false}));
-    p.rotation.y=Math.PI/2;p.position.set(-2.6465,CY,CZ);p.renderOrder=3.1;p.name="PolaroidPhoto";scene.add(p);
+    // Drawn on top (depthTest off) so the monitor casing never cuts into it while orbiting; it covers the baked grey card underneath. photo 480x597 (ratio .804). Border 3 mm on every side; card = photo + border. Bigger than before (photo 100 mm wide, was 71.6 mm).
+    const PW=0.100,PHT=PW*597/480,B=0.003,CW=PW+2*B,CH=PHT+2*B,CZ=-1.362,CY=0.8205+CH/2;
+    const card=new THREE.Mesh(new THREE.PlaneGeometry(CW,CH),new THREE.MeshBasicMaterial({color:0xf4f1ea,depthWrite:false,depthTest:false}));
+    card.rotation.y=Math.PI/2;card.position.set(-2.6475,CY,CZ);card.renderOrder=30;card.name="PolaroidCard";scene.add(card);
+    const p=new THREE.Mesh(new THREE.PlaneGeometry(PW,PHT),new THREE.MeshBasicMaterial({map:t,color:0xf2ede4,depthWrite:false,depthTest:false}));
+    p.rotation.y=Math.PI/2;p.position.set(-2.6465,CY,CZ);p.renderOrder=31;p.name="PolaroidPhoto";scene.add(p);
   }
   scene.add(g.scene);res();
 },e=>{if(e.lengthComputable){progressRoom=e.loaded/e.total;setProgress()}},rej));
@@ -1385,7 +1385,7 @@ function frame(now){
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
   crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepLamps(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
-  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active||term.active?0:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
+  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:term.active?0.3:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
   shadowSync(now);
   composer.render();
