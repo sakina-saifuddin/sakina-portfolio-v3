@@ -13,7 +13,7 @@ import {createTapeDeck} from "./tape-deck.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=8";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
-import {createPhone} from "./phone.js?v=12";
+import {createPhone} from "./phone.js?v=13";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -1398,7 +1398,7 @@ const keysNote=(()=>{
   return {swallowed(){const s=swallow&&performance.now()-swallow<1500;swallow=0;return s},holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
     sync(){holder.visible=!lifted&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
 })();
-function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
+function syncCall(now){callBubble.update(now,false)   /* INCOMING bubble removed on request */}
 function syncMenu(){
   const cur=padOpen()?"pad":term.active?menuIbm:"";
   if(cur===menuCur)return;menuCur=cur;

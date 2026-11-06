@@ -224,3 +224,6 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 
 ## Phone caption: Sakina's exact words
 - Caption (`SCRIPT` in phone.js and `#phone-cap` in index.html) now uses her exact transcript, including "May 2027"; paragraphs shown via `white-space:pre-line`. phone.js v12, felix-ui.css v25, main-pad.js v141.
+
+## Phone: caption Version 2, INCOMING sign removed
+- Caption now uses Sakina's Version 2 transcript (exact words). The white "INCOMING" sign above the ringing phone is hidden (`syncCall` passes false); the phone still rings, shakes and is clickable. phone.js v13, main-pad.js v142.
