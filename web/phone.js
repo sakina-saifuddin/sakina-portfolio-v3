@@ -112,7 +112,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
     } catch { /* audio unavailable */ }
   }
   const ring = { last: -1, n: 0 };
-  const RING_MAX = Infinity, RING_GAIN = 0.0065;   // soft sine ring until the phone is answered (was a square wave at 0.018)
+  const RING_MAX = Infinity, RING_GAIN = 0.05;   // soft but clearly audible sine ring until answered (square wave at 0.018 was harsh; 0.0065 sine was inaudible)
 
   function answer() {
     if (st.mode !== "ringing" && st.mode !== "idle") return false;

@@ -13,7 +13,7 @@ import {createTapeDeck} from "./tape-deck.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=6";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
-import {createPhone} from "./phone.js?v=8";
+import {createPhone} from "./phone.js?v=9";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -747,33 +747,38 @@ const menuLinks=[...document.querySelectorAll(".menu [data-view]")];let menuCur=
 // "INCOMING" speech bubble: a white billboard fixed in the room with its tail on the top of the ringing phone, so it stays with the phone when the camera
 // moves. A red phone symbol inside it shakes with the handset. Shown only while the phone rings; clicking it answers the phone.
 const callBubble=(()=>{
-  const W=768,H=256,SW=0.48,SH=SW*H/W,TIP=[706,244],ICON=[84,90];   // the phone sits at the very edge of the home view, so the pointer is long
+  // Same look as the CREDITS / SOUND buttons: VT323 capitals, cream ink on a dark translucent panel with a thin light border. Rectangular, short tail.
+  const W=512,H=192,SW=0.40,SH=SW*H/W,TIP=[352,180],ICON=[78,62];
   const bc=document.createElement("canvas");bc.width=W;bc.height=H;const x=bc.getContext("2d");
   const draw=()=>{
     x.clearRect(0,0,W,H);x.save();
-    x.shadowColor="rgba(0,0,0,.4)";x.shadowBlur=14;x.shadowOffsetY=4;
-    x.fillStyle="#f4f2ec";x.beginPath();x.roundRect(14,10,436,160,16);x.fill();
-    x.shadowColor="transparent";x.beginPath();x.moveTo(318,157);x.lineTo(TIP[0],TIP[1]);x.lineTo(402,157);x.closePath();x.fill();
+    x.beginPath();x.moveTo(12,12);x.lineTo(372,12);x.lineTo(372,116);x.lineTo(352,116);x.lineTo(TIP[0],TIP[1]);x.lineTo(314,116);x.lineTo(12,116);x.closePath();
+    x.shadowColor="rgba(0,0,0,.55)";x.shadowBlur=14;x.shadowOffsetY=4;
+    x.fillStyle="rgba(20,18,24,.88)";x.fill();
+    x.shadowColor="transparent";x.lineJoin="round";x.lineWidth=3;x.strokeStyle="rgba(239,233,220,.55)";x.stroke();
     x.restore();
-    x.fillStyle="#1d1712";x.textBaseline="middle";x.font="700 44px 'IBM Plex Mono',ui-monospace,monospace";
+    x.fillStyle="#efe9dc";x.textBaseline="middle";
     try{x.letterSpacing="5px"}catch{}
-    x.fillText("INCOMING",148,92);
+    let fs=64;x.font=fs+"px VT323, ui-monospace, monospace";
+    while(fs>30&&x.measureText("INCOMING").width>226){fs-=2;x.font=fs+"px VT323, ui-monospace, monospace"}   // always fits the box, whichever font is loaded
+    x.fillText("INCOMING",132,66);
     bt.needsUpdate=true;
   };
   const bt=new THREE.CanvasTexture(bc);bt.colorSpace=THREE.SRGBColorSpace;
+  // Red phone receiver symbol (classic handset: curved grip with an earpiece and a mouthpiece).
   const ic=document.createElement("canvas");ic.width=ic.height=128;{
-    const g=ic.getContext("2d");g.strokeStyle=g.fillStyle="#e0301f";g.lineCap="round";
-    g.translate(64,64);g.rotate(-0.62);g.translate(-64,-64);   // a receiver: curved handle with an earpiece and a mouthpiece, tilted like a call icon
-    g.lineWidth=14;g.beginPath();g.arc(64,92,36,Math.PI*1.2,Math.PI*1.8);g.stroke();
-    for(const ex of [28,100]){g.beginPath();g.roundRect(ex-15,70,30,34,11);g.fill()}
+    const g=ic.getContext("2d");g.strokeStyle=g.fillStyle="#ff3b27";g.lineCap="round";
+    g.translate(64,64);g.rotate(-0.62);g.translate(-64,-64);
+    g.lineWidth=16;g.beginPath();g.arc(64,92,38,Math.PI*1.2,Math.PI*1.8);g.stroke();
+    for(const ex of [26,102]){g.beginPath();g.roundRect(ex-16,68,32,38,11);g.fill()}
   }
   const it=new THREE.CanvasTexture(ic);it.colorSpace=THREE.SRGBColorSpace;
-  const mk=(map,order)=>new THREE.SpriteMaterial({map,transparent:true,depthTest:false,depthWrite:false,toneMapped:false});
+  const mk=(map)=>new THREE.SpriteMaterial({map,transparent:true,depthTest:false,depthWrite:false,toneMapped:false});
   const bubble=new THREE.Sprite(mk(bt));bubble.center.set(TIP[0]/W,1-TIP[1]/H);bubble.scale.set(SW,SH,1);bubble.renderOrder=40;
-  const icon=new THREE.Sprite(mk(it));icon.scale.set(0.085,0.085,1);icon.renderOrder=41;
+  const icon=new THREE.Sprite(mk(it));icon.scale.set(0.075,0.075,1);icon.renderOrder=41;
   bubble.userData.phone="handset";bubble.name="CallBubble";
   bubble.visible=icon.visible=false;scene.add(bubble,icon);
-  draw();document.fonts?.ready.then(draw);
+  draw();document.fonts?.load("64px VT323").then(draw).catch(()=>{});document.fonts?.ready.then(draw);
   const tip=new THREE.Vector3(),r=new THREE.Vector3(),u=new THREE.Vector3();
   return {bubble,get on(){return bubble.visible},
     update(now,on){
