@@ -127,6 +127,10 @@ const contact = [
 const help = [
   hi("ABOUT") + "     who I am (F1)",
   hi("ONLINE") + "    where else to find me (F2)",
+  hi("SNAKE BLOCKS ZOMBIE") + "  games",
+  hi("DEMO") + "      the screensaver",
+  hi("OPTIONS") + "   other versions of things",
+  hi("DEBUG") + "     fly around the room",
   hi("WORK") + "      where I have worked",
   hi("PROJECTS") + "  what I have built",
   hi("HACKS") + "     hackathons",
@@ -147,7 +151,7 @@ const help = [
   "  Start a line with a number to write",
   "  your own program, then type RUN.",
   "",
-  "Ctrl+C stops a program."
+  "Ctrl+C stops a program. Q leaves a game."
 ];
 
 export const commands = {

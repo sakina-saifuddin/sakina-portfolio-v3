@@ -59,9 +59,9 @@ html[data-view="ibm"] .bar .keys{display:none}
 html[data-view="desk"] .bar .keys{display:none}
 #back{padding:5px 16px 4px;font-family:var(--osd);font-size:23px;letter-spacing:.06em;line-height:1.2;text-transform:uppercase;color:var(--f-ink);background:rgba(20,18,24,.55);border:1px solid var(--f-line);border-radius:999px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer;transition:color .15s,border-color .15s}
 #back:hover{color:#fff;border-color:rgba(255,255,255,.4)}
-html[data-view="ibm"] #back,html[data-view="desk"] #back,html[data-view="outside"] #back,html[data-view="notepad"] #back,html[data-view="chair"] #back{display:block}
+html[data-view="ibm"] #back,html[data-view="fly"] #back,html[data-view="desk"] #back,html[data-view="outside"] #back,html[data-view="notepad"] #back,html[data-view="chair"] #back{display:block}
 #back[hidden]{display:none}
-html:not([data-view="ibm"]):not([data-view="desk"]):not([data-view="outside"]):not([data-view="notepad"]):not([data-view="chair"]) #back{display:none}
+html:not([data-view="ibm"]):not([data-view="fly"]):not([data-view="desk"]):not([data-view="outside"]):not([data-view="notepad"]):not([data-view="chair"]) #back{display:none}
 
 .cred{position:fixed;left:0;top:0;bottom:0;width:min(560px,100vw);z-index:9;display:flex;align-items:flex-start;padding:84px 20px 28px;pointer-events:none}
 .cred[hidden]{display:none}

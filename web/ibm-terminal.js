@@ -1,22 +1,27 @@
 import * as THREE from "three";
 import {BOOT, BAR, BBS, PROGRAMS, commands} from "./ibm-content.js";
 import {Basic} from "./basic.js";
+import {GAMES} from "./ibm-games.js?v=1";
 
 // A 40 x 25 text screen like the reference computer: 24 text rows plus a function-key row.
 // The visitor types. Nothing runs by itself after the boot message.
-const W = 800, H = 600;
+const W = 800, H = 600;            // layout units
+const S = 1.6;                      // canvas pixels per layout unit (1280 x 960): sharp text
+const PXW = W * S, PXH = H * S;
 const COLS = 40, ROWS = 25, TROWS = ROWS - 1;
 const GX = 50, GY = 37.5, GW = 700, GH = 525;
 const CH = GH / ROWS;
 const SIZE = 23;
 const FONT = `${SIZE}px VT323, "DejaVu Sans Mono", monospace`;
-const TEXT = "#9ef58a", HI = "#eaffe3", DARK = "#04140a", BARC = "#bff5b0", SHADOW = "rgba(158,245,138,.62)";
+const TEXT = "#9ef58a", HI = "#eaffe3", DARK = "#04140a", BARC = "#bff5b0", DIM = "#52b04c", FAINT = "#2c6a2e", SHADOW = "rgba(158,245,138,.5)";
+const SCREEN_KEY = "sakina-pc-screen";
+const IDLE_MS = 120000;
 const CPS = 260;
 const MAXIN = 74;
 const DISK = "sakina-pc-disk";
 
 const style = document.createElement("style");
-style.textContent = "#grain{transition:opacity .6s}html.ibm-view #grain{opacity:.13!important}";
+style.textContent = "html.ibm-view #grain{opacity:0!important}";
 document.head.append(style);
 
 const vis = (s) => s.replace(/[\u0001\u0002]/g, "");
@@ -27,28 +32,33 @@ const GLYPH = {
   A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
   K: ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
   I: ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
-  N: ["10001", "11001", "10101", "10011", "10001", "10001", "10001"]
+  N: ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  P: ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+  T: ["11111", "00100", "00100", "00100", "00100", "00100", "00100"]
 };
 
 const readDisk = () => { try { return JSON.parse(localStorage.getItem(DISK) || "{}"); } catch { return {}; } };
 const writeDisk = (d) => { try { localStorage.setItem(DISK, JSON.stringify(d)); return true; } catch { return false; } };
 
-export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2, onOpenLink, onType, onExit}) {
+export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2, onOpenLink, onType, onExit, onDebug, onOption}) {
   const cv = document.createElement("canvas");
-  cv.width = W; cv.height = H;
+  cv.width = PXW; cv.height = PXH;
   const g = cv.getContext("2d");
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 16;
   try { document.fonts?.load(FONT); } catch { /* the fallback font is used until VT323 arrives */ }
 
-  const u = {uMap: {value: tex}, uTime: {value: 0}, uOff: {value: 0}, uSize: {value: new THREE.Vector2(size[0], size[1])}};
+  let retro = 0;
+  try { retro = localStorage.getItem(SCREEN_KEY) === "retro" ? 1 : 0; } catch { /* default: sharp */ }
+  const u = {uMap: {value: tex}, uTime: {value: 0}, uOff: {value: 0}, uRetro: {value: retro}, uSize: {value: new THREE.Vector2(size[0], size[1])}};
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(size[0], size[1]),
     new THREE.ShaderMaterial({
       uniforms: u,
       vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
-      fragmentShader: `uniform sampler2D uMap;uniform float uTime;uniform float uOff;uniform vec2 uSize;varying vec2 vUv;
+      fragmentShader: `uniform sampler2D uMap;uniform float uTime;uniform float uOff;uniform float uRetro;uniform vec2 uSize;varying vec2 vUv;
         float ease(float x){return x<.5?2.*x*x:1.-pow(-2.*x+2.,2.)/2.;}
         void main(){
           vec2 q=vUv-0.5;
@@ -58,11 +68,11 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
           vec2 uv=vec2(q.x,q.y*(.5/max(hh,.02)))+.5;
           vec3 col=texture2D(uMap,uv).rgb;
           vec3 blur=texture2D(uMap,uv+vec2(0.0016,0.0)).rgb*0.5+texture2D(uMap,uv-vec2(0.0016,0.0)).rgb*0.5;
-          col=mix(col,blur,0.3);
-          float lines=0.86+0.14*sin(vUv.y*${H}.0*3.14159);
-          float vig=1.0-0.4*smoothstep(0.3,1.1,dot(q,q)*1.9);
-          float flick=0.985+0.015*sin(uTime*47.0);
-          vec3 pic=col*lines*vig*flick*1.3;
+          col=mix(col,blur,0.3*uRetro);
+          float lines=mix(1.0,0.86+0.14*sin(vUv.y*${H}.0*3.14159),uRetro);
+          float vig=1.0-mix(0.10,0.4,uRetro)*smoothstep(0.3,1.1,dot(q,q)*1.9);
+          float flick=mix(1.0,0.985+0.015*sin(uTime*47.0),uRetro);
+          vec3 pic=col*lines*vig*flick*1.22;
           float glow=e1*e1*e1;
           pic=pic*(1.0+3.0*glow)+vec3(0.55,0.85,0.65)*glow*(1.0-e2*0.15);
           pic*=1.0-fade;
@@ -88,7 +98,7 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     active: false, booted: false, mode: "basic",
     out: [], partial: "", pending: [], cur: "", curFull: null, input: "",
     powerDir: 0, off: 0, pauseUntil: 0, last: 0, scrollBack: 0, skip: false, waiting: false, count: 0, paged: false,
-    macro: null, prog: new Map(), running: false, asking: false, flash: null, bar: [], hot: []
+    macro: null, prog: new Map(), running: false, asking: false, flash: null, bar: [], hot: [], game: null, menu: null, lastInput: 0, idleAt: 0
   };
 
   // ---- text output ----
@@ -128,7 +138,7 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
   const reset = (now) => {
     basic.stop();
     st.out = []; st.partial = ""; st.cur = ""; st.curFull = null; st.input = ""; st.scrollBack = 0; st.skip = false;
-    st.pending = []; st.macro = null; st.sendWhenReady = false; st.running = false; st.asking = false; st.mode = "basic"; st.flash = null;
+    st.pending = []; st.macro = null; st.sendWhenReady = false; st.running = false; st.asking = false; st.mode = "basic"; st.flash = null; st.game = null; st.menu = null;
     st.prog = new Map(); basic.trace = false;
     BOOT.forEach((l) => wrap(l).forEach((x) => st.pending.push(x)));
     st.pending.push("");
@@ -242,7 +252,10 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
       startProgram();
       return;
     }
-    if (word === "ONLINE" || word === "CONTACT") { st.mode = "bbs"; st.flash = null; return; }
+    if (word === "ONLINE" || word === "CONTACT") { openMenu("online"); return; }
+    if (word === "OPTIONS") { openMenu("options"); return; }
+    if (GAMES[word]) { startGame(word); return; }
+    if (word === "DEBUG") { write("Flying. Press Esc to land.\n"); onDebug?.(); write("READY\n"); return; }
 
     const c = rest === "" || /^(ME|MORE)$/i.test(rest) ? commands[word] : null;
     if (c && !c.online) {
@@ -273,7 +286,7 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
 
   // a click or an F-key types the command for the visitor, then presses Enter
   const typeCmd = (text, submitIt = true) => {
-    if (st.mode === "bbs") return;
+    if (st.mode !== "basic") return;
     if (st.running) breakProgram();
     flushPending();
     st.input = "";
@@ -285,11 +298,43 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     else typeCmd(cmd);
   };
 
-  const openLink = (i, now) => {
-    const l = BBS.links[i];
-    if (!l) return;
-    st.flash = {text: "Opening " + l.label + "...", until: now + 1800};
-    onOpenLink(l.href);
+  const flash = (text, now) => { st.flash = {text, until: now + 1800}; };
+  const screenState = () => (retro ? "RETRO  scanlines and glow (press to switch)" : "SHARP  clean and crisp (press to switch)");
+  const MENUS = {
+    online: {
+      title: "SAKINA BBS", sub: "Links", banner: BBS.banner, tagline: BBS.tagline, intro: BBS.intro, prompt: BBS.prompt, bottom: BBS.bottom,
+      exit: "NO CARRIER\n\nREADY\n",
+      items: BBS.links.map((l) => ({label: l.label, text: () => l.shown, act: (now) => { flash("Opening " + l.label + "...", now); onOpenLink(l.href); }}))
+    },
+    options: {
+      title: "SAKINA PC", sub: "Options", banner: "OPTIONS", tagline: "other versions of things", intro: "Choose one:",
+      prompt: "Press 1-4 or click a line to change it. Q goes back.", bottom: "1-4 choose  Q back", exit: "READY\n",
+      items: [
+        {label: "Lo-fi", text: () => "the plain website I built before this one", act: () => { onOption?.("lofi", true); }},
+        {label: "Ask me", text: () => "chat about my resume (new tab)", act: (now) => { flash("Opening Ask Sakina...", now); onOpenLink("https://askksakina.netlify.app"); }},
+        {label: "Screen", text: screenState, act: (now) => {
+          retro = retro ? 0 : 1; u.uRetro.value = retro;
+          try { localStorage.setItem(SCREEN_KEY, retro ? "retro" : "sharp"); } catch { /* not saved */ }
+          flash("Screen: " + (retro ? "retro" : "sharp"), now);
+        }},
+        {label: "Sound", text: () => (onOption?.("sound", false) || "off") + "  (press to switch)", act: (now) => { flash("Sound: " + (onOption?.("sound", true) || ""), now); }}
+      ]
+    }
+  };
+  const openMenu = (key) => { st.mode = "menu"; st.menu = key; st.flash = null; };
+  const closeMenu = () => { const m = MENUS[st.menu]; st.mode = "basic"; st.menu = null; st.flash = null; write(m ? m.exit : "READY\n"); };
+
+  const startGame = (name) => {
+    st.game = GAMES[name]({beep: (k) => onType?.(k === "eat" || k === "line" || k === "hit" || k === "over" ? "enter" : "key")});
+    st.mode = "game";
+  };
+  const quitGame = () => {
+    const g0 = st.game;
+    st.game = null; st.mode = "basic";
+    if (st.partial) write("\n");
+    write("READY\n");
+    st.idleAt = performance.now();
+    return g0;
   };
 
   // ---- per-frame logic ----
@@ -297,6 +342,9 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     const dt = Math.min(100, now - st.last);
     st.last = now;
     if (st.flash && now > st.flash.until) st.flash = null;
+    if (st.mode === "game") { st.game.update(dt, now); return; }
+    if (st.mode === "basic" && st.active && !st.macro && !st.running && !st.pending.length && st.curFull === null && !st.input
+        && now - Math.max(st.lastInput, st.idleAt) > IDLE_MS) { startGame("DEMO"); return; }
 
     if (st.macro) {
       const m = st.macro;
@@ -389,7 +437,7 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     const slice = all.slice(Math.max(0, end - VR), end);
 
     g.shadowColor = SHADOW;
-    g.shadowBlur = 6;
+    g.shadowBlur = 4 * S;
     slice.forEach((t, i) => putMarked(t, i));
     g.shadowBlur = 0;
 
@@ -399,7 +447,7 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
       const show = busy || st.running && !st.asking ? true : Math.floor(now / 450) % 2 === 0;
       if (show && !st.waiting) {
         g.fillStyle = TEXT;
-        g.shadowColor = SHADOW; g.shadowBlur = 6;
+        g.shadowColor = SHADOW; g.shadowBlur = 4 * S;
         g.fillRect(GX + Math.min(cursorCol, COLS - 1) * cw, GY + row * CH + CH - 4, cw * 0.95, 3);
         g.shadowBlur = 0;
       }
@@ -422,18 +470,18 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     st.hot = [];
   };
 
-  const drawBbs = (now) => {
+  const drawMenu = () => {
+    const cfg = MENUS[st.menu];
     const cols = 80;
     setGrid(cols);
     const colsToX = (c) => GX + c * cw;
-    // top bar
     block(0, 0, cols, BARC);
-    put(BBS.title + " · Links", 1, 0, DARK, false);
-    const right = "all 1-" + BBS.links.length + "/" + BBS.links.length;
+    put(cfg.title + " \u00b7 " + cfg.sub, 1, 0, DARK, false);
+    const right = "all 1-" + cfg.items.length + "/" + cfg.items.length;
     put(right, cols - right.length - 1, 0, "rgba(4,20,10,.55)", false);
 
     // big banner: bright face over a dark green drop shadow
-    const px = 16, py = 14.4, word = BBS.banner;
+    const px = 16, py = 14.4, word = cfg.banner;
     const bw = word.length * 5 + (word.length - 1);
     const x0 = (W - bw * px) / 2, y0 = GY + CH * 1.9;
     const cells = [];
@@ -443,14 +491,11 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     });
     g.fillStyle = "#2f8f49";
     cells.forEach(([x, y]) => { for (let k = 1; k <= 3; k++) g.fillRect(x + k * 2, y + k * 3.4, px - 1, py - 1); });
-    g.shadowColor = "rgba(190,255,200,.55)"; g.shadowBlur = 10;
     g.fillStyle = "#d6ffe0";
     cells.forEach(([x, y]) => g.fillRect(x, y, px - 1, py - 1));
-    g.shadowBlur = 0;
 
-    g.shadowColor = SHADOW; g.shadowBlur = 5;
-    // tagline between two rules
-    const tag = BBS.tagline;
+    g.shadowColor = SHADOW; g.shadowBlur = 3 * S;
+    const tag = cfg.tagline;
     const tc = Math.floor((cols - tag.length) / 2);
     const ty = GY + 8 * CH + CH * 0.5;
     g.fillStyle = TEXT;
@@ -458,31 +503,49 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     g.fillRect(colsToX(tc + tag.length + 2), ty, (cols - 4 - (tc + tag.length + 2)) * cw, 2);
     put(tag, tc, 8, HI);
 
-    put(BBS.intro, 4, 11, HI);
+    put(cfg.intro, 4, 11, HI);
     st.hot = [];
-    BBS.links.forEach((l, i) => {
+    cfg.items.forEach((it, i) => {
       const row = 13 + i;
       put("[" + (i + 1) + "]", 8, row, HI);
-      put(l.label.padEnd(10), 12, row, HI);
-      put(l.shown, 22, row, TEXT);
+      put(it.label.padEnd(10), 12, row, HI);
+      put(it.text(), 22, row, TEXT);
       st.hot.push({x0: colsToX(6), x1: colsToX(cols - 6), y0: GY + row * CH, y1: GY + (row + 1) * CH, i});
     });
-    const msg = st.flash ? st.flash.text : BBS.prompt;
+    const msg = st.flash ? st.flash.text : cfg.prompt;
     put(msg, 7, 20, st.flash ? HI : TEXT);
     g.shadowBlur = 0;
 
     block(0, ROWS - 1, cols, BARC);
-    put(BBS.bottom, 1, ROWS - 1, "rgba(4,20,10,.5)", false);
+    put(cfg.bottom, 1, ROWS - 1, "rgba(4,20,10,.5)", false);
     st.bar = [];
   };
 
+  // the games draw through this small kit (cells, not pixels)
+  const R = {
+    c: {text: TEXT, hi: HI, dim: DIM, dark: DARK, bar: BARC, faint: FAINT},
+    rect(col, row, w, h, color, inset = 0) {
+      g.fillStyle = color;
+      g.fillRect(GX + col * cw + inset, GY + row * CH + inset, w * cw - inset * 2, h * CH - inset * 2);
+    },
+    text(s, col, row, color = TEXT) { g.shadowColor = SHADOW; g.shadowBlur = 3 * S; put(s, col, row, color); g.shadowBlur = 0; },
+    glyph(s, col, row, color = TEXT) { g.shadowColor = SHADOW; g.shadowBlur = 3 * S; put(s, col, row, color); g.shadowBlur = 0; }
+  };
+  const drawGame = () => {
+    setGrid(COLS);
+    st.game.draw(R);
+    block(0, ROWS - 1, COLS, BARC);
+    put(st.game.status(), 1, ROWS - 1, DARK, false);
+    st.bar = []; st.hot = [];
+  };
+
   const draw = (now) => {
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.setTransform(S, 0, 0, S, 0, 0);
     g.fillStyle = "#010a03";
     g.fillRect(0, 0, W, H);
     g.font = FONT;
     g.textBaseline = "alphabetic";
-    if (st.mode === "bbs") drawBbs(now); else drawBasic(now);
+    if (st.mode === "menu") drawMenu(); else if (st.mode === "game") drawGame(); else drawBasic(now);
     tex.needsUpdate = true;
   };
 
@@ -492,6 +555,7 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     const k = e.key;
     if (k === "Escape") return false;
     const now = performance.now();
+    st.lastInput = now;
 
     if (e.ctrlKey && (k === "c" || k === "C")) {
       if (st.running) breakProgram();
@@ -501,9 +565,18 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return false;
 
-    if (st.mode === "bbs") {
-      if (/^[1-9]$/.test(k)) { onType?.("key"); openLink(parseInt(k, 10) - 1, now); return true; }
-      if (k === "q" || k === "Q") { onType?.("enter"); st.mode = "basic"; write("NO CARRIER\n\nREADY\n"); return true; }
+    if (st.mode === "game") {
+      const g0 = st.game;
+      if (g0.anyKeyQuits) { onType?.("key"); quitGame(); return true; }
+      if (k === "q" || k === "Q") { onType?.("enter"); quitGame(); return true; }
+      g0.key(k);
+      return k.length === 1 || k === " " || k.startsWith("Arrow") || k === "Enter";
+    }
+
+    if (st.mode === "menu") {
+      const cfg = MENUS[st.menu];
+      if (/^[1-9]$/.test(k)) { onType?.("key"); cfg.items[parseInt(k, 10) - 1]?.act(now); return true; }
+      if (k === "q" || k === "Q") { onType?.("enter"); closeMenu(); return true; }
       if (k === "l" || k === "L") { onType?.("key"); st.flash = null; return true; }
       return k.length === 1 || k === "Enter" || k === " " || /^F\d+$/.test(k) || k === "Backspace";
     }
@@ -542,9 +615,11 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
 
   const clickAt = (uv) => {
     const x = uv.x * W, y = (1 - uv.y) * H;
-    if (st.mode === "bbs") {
+    st.lastInput = performance.now();
+    if (st.mode === "game") { if (st.game.anyKeyQuits) quitGame(); return; }
+    if (st.mode === "menu") {
       const h = st.hot.find((q) => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1);
-      if (h) { onType?.("key"); openLink(h.i, performance.now()); }
+      if (h) { onType?.("key"); MENUS[st.menu].items[h.i].act(performance.now()); }
       return;
     }
     const b = st.bar.find((q) => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1);
@@ -560,10 +635,15 @@ export function makeIbmTerminal({scene, position, size, rotationY = Math.PI / 2,
       if (v === st.active) return;
       st.active = v;
       document.documentElement.classList.toggle("ibm-view", v);
+      st.lastInput = performance.now();
       if (v && !st.booted) { st.booted = true; reset(performance.now()); }
+      if (!v) { st.game?.pause?.(); st.game?.releaseKeys?.(); }
     },
     onKey,
+    onKeyUp(e) { if (st.active && st.mode === "game") st.game.keyUp?.(e.key); },
+    releaseKeys() { st.game?.releaseKeys?.(); },
     clickAt,
+    refresh() { /* menu labels are read live */ },
     command(cmd) { if (st.active) typeCmd(cmd === "CONTACT" ? "ONLINE" : cmd); },
     setPower(on) {
       st.powerDir = on ? -1 : 1;

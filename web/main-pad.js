@@ -10,7 +10,7 @@ import {Ambience} from "./audio.js";
 import {pad} from "./pad-content.js";
 import {makePadTexture,PAD,UNDER,PAD_ROWS,PAD_W,PAD_H} from "./pad-texture.js";
 import {createTapeDeck} from "./tape-deck.js?v=4";
-import {makeIbmTerminal} from "./ibm-terminal.js?v=7";
+import {makeIbmTerminal} from "./ibm-terminal.js?v=8";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
 import {createPhone} from "./phone.js?v=9";
@@ -316,11 +316,13 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.gl
     const p=new THREE.Mesh(new THREE.PlaneGeometry(2.0,2.0),m);p.rotation.y=Math.PI/2;p.position.set(-2.99,1.7,-1.5);p.renderOrder=1;p.name="LeafShadows";scene.add(p);
   }
   {
-    const t=new THREE.TextureLoader().load("sakina-photo.jpg");t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
-    const card=new THREE.Mesh(new THREE.PlaneGeometry(0.088,0.106),new THREE.MeshBasicMaterial({color:0xe2dfd8,transparent:true,depthWrite:false}));
-    card.rotation.y=Math.PI/2;card.position.set(-2.6475,0.8735,-1.354);card.renderOrder=3;card.name="PolaroidCard";scene.add(card);
-    const p=new THREE.Mesh(new THREE.PlaneGeometry(0.0716,0.0891),new THREE.MeshBasicMaterial({map:t,color:0xcfc2b0,transparent:true,depthWrite:false}));
-    p.rotation.y=Math.PI/2;p.position.set(-2.6465,0.8795,-1.354);p.renderOrder=3.1;p.name="PolaroidPhoto";scene.add(p);
+    const t=new THREE.TextureLoader().load("sakina-photo.jpg");t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=16;
+    // photo 480x597 (ratio .804). Border 3 mm on every side; card = photo + border. Bigger than before (photo 100 mm wide, was 71.6 mm).
+    const PW=0.100,PHT=PW*597/480,B=0.003,CW=PW+2*B,CH=PHT+2*B,CZ=-1.3585,CY=0.8205+CH/2;
+    const card=new THREE.Mesh(new THREE.PlaneGeometry(CW,CH),new THREE.MeshBasicMaterial({color:0xf4f1ea,depthWrite:false}));
+    card.rotation.y=Math.PI/2;card.position.set(-2.6475,CY,CZ);card.renderOrder=3;card.name="PolaroidCard";scene.add(card);
+    const p=new THREE.Mesh(new THREE.PlaneGeometry(PW,PHT),new THREE.MeshBasicMaterial({map:t,color:0xf2ede4,depthWrite:false}));
+    p.rotation.y=Math.PI/2;p.position.set(-2.6465,CY,CZ);p.renderOrder=3.1;p.name="PolaroidPhoto";scene.add(p);
   }
   scene.add(g.scene);res();
 },e=>{if(e.lengthComputable){progressRoom=e.loaded/e.total;setProgress()}},rej));
@@ -827,7 +829,47 @@ addEventListener("keydown",e=>{
   if(e.key==="Escape"&&padOpen()){e.stopImmediatePropagation();dropPad(true)}
 },true);
 
+// DEBUG on the computer: fly around the room. WASD / arrows move, Q and E go down and up, drag looks around, Shift is fast, Esc lands.
+const fly={on:false,yaw:0,pitch:0,keys:new Set(),last:0,drag:null};
+const FLY_BOX=new THREE.Box3(new THREE.Vector3(-2.8,0.4,-2.2),new THREE.Vector3(3.2,2.4,3.1));
+function flyStart(){
+  closePanel();notebook?.stop();dropPad();term.setActive(false);
+  tween=null;fly.on=true;controls.enabled=false;fly.keys.clear();fly.last=performance.now();
+  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,"YXZ");fly.yaw=e.y;fly.pitch=e.x;
+  document.documentElement.dataset.view="fly";
+  nudge("FLYING: WASD MOVE · Q/E DOWN/UP · DRAG TO LOOK · ESC TO LAND");
+}
+function flyStop(){
+  fly.on=false;fly.keys.clear();
+  const f=new THREE.Vector3(0,0,-1.5).applyQuaternion(camera.quaternion).add(camera.position);
+  controls.target.copy(f);controls.lookTarget.copy(f);
+}
+function stepFly(now){
+  const dt=Math.min(0.06,(now-fly.last)/1000);fly.last=now;
+  const k=fly.keys,sp=(k.has("ShiftLeft")||k.has("ShiftRight")?3.2:1.1)*dt;
+  const fwd=new THREE.Vector3(-Math.sin(fly.yaw)*Math.cos(fly.pitch),Math.sin(fly.pitch),-Math.cos(fly.yaw)*Math.cos(fly.pitch));
+  const right=new THREE.Vector3(Math.cos(fly.yaw),0,-Math.sin(fly.yaw));
+  const mv=new THREE.Vector3();
+  if(k.has("KeyW")||k.has("ArrowUp"))mv.add(fwd);if(k.has("KeyS")||k.has("ArrowDown"))mv.sub(fwd);
+  if(k.has("KeyD")||k.has("ArrowRight"))mv.add(right);if(k.has("KeyA")||k.has("ArrowLeft"))mv.sub(right);
+  if(k.has("KeyE")||k.has("Space"))mv.y+=1;if(k.has("KeyQ"))mv.y-=1;
+  if(mv.lengthSq())camera.position.addScaledVector(mv.normalize(),sp);
+  FLY_BOX.clampPoint(camera.position,camera.position);
+  camera.quaternion.setFromEuler(new THREE.Euler(fly.pitch,fly.yaw,0,"YXZ"));
+}
+addEventListener("keydown",e=>{
+  if(!fly.on||e.key==="Escape"||e.metaKey||e.ctrlKey||e.altKey||lofiDlg.open)return;
+  fly.keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();
+},true);
+addEventListener("keyup",e=>{if(fly.on)fly.keys.delete(e.code)},true);
+addEventListener("blur",()=>fly.keys.clear());
+canvas.addEventListener("pointermove",e=>{
+  if(!fly.on||!(e.buttons&1))return;
+  fly.yaw-=e.movementX*0.0042;fly.pitch=Math.max(-1.45,Math.min(1.45,fly.pitch-e.movementY*0.0042));
+});
+
 function go(name){
+  if(fly.on)flyStop();
   if(name!=="notepad")notebook?.stop();
   if(name!=="pad")dropPad();
   if(name!=="ibm"&&name!=="contact"&&name!=="pcpower")term.setActive(false);
@@ -1165,7 +1207,7 @@ canvas.addEventListener("pointermove",ev=>{
 let down=null;
 canvas.addEventListener("pointerdown",ev=>{down={x:ev.clientX,y:ev.clientY}});
 canvas.addEventListener("pointerup",ev=>{
-  if(!down||tween)return;
+  if(!down||tween||fly.on)return;
   const moved=Math.hypot(ev.clientX-down.x,ev.clientY-down.y);down=null;
   if(moved>6||controls.clickBlocked)return;     // a drag or pinch is never a click
   if(term.active&&pc.on){
@@ -1276,6 +1318,7 @@ function frame(now){
   requestAnimationFrame(frame);
   adaptRes(now);
   stepTween(now);
+  if(fly.on)stepFly(now);
   if(controls.enabled)controls.update();
   stepPad(now);deck?.step(now);cityLife?.step(now/1000);phone?.step(now);notebook?.step(now);stepDeskGone();stepPc(now);term.step(now,reduced);ibmLights.step(now);crtVideo.step(now);
   if(gateEl===undefined||gateEl?.isConnected){
@@ -1287,7 +1330,7 @@ function frame(now){
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
   crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepLamps(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
-  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
+  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active||term.active?0:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
   shadowSync(now);
   composer.render();
@@ -1700,8 +1743,16 @@ function stepTv(now){
 }
 
 const ibmLights=addIbmLights(scene);
-const term=makeIbmTerminal({scene,position:[-2.7573,0.873,-1.1926],size:[0.283,0.208],rotationY:1.2896,onType:k=>sfx.type(k),onExit:()=>go("home"),onOpenLink:href=>{if(href.startsWith("mailto:"))location.href=href;else window.open(href,"_blank","noopener")}});
-addEventListener("keydown",e=>{if(e.metaKey||e.altKey||document.getElementById("crt-gate"))return;if(e.ctrlKey&&!(term.active&&/^c$/i.test(e.key)))return;if(term.onKey(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
+// OPTIONS screen on the computer: "lofi" opens the lo-fi dialog, "sound" reads or toggles the sound button
+function optionHook(id,toggle){
+  if(id==="lofi"){if(toggle&&!lofiDlg.open){term.setActive(false);lofiDlg.showModal()}return ""}
+  if(id==="sound"){const b=$("btn-sound");if(toggle)b.click();return b.getAttribute("aria-pressed")==="true"?"on":"off"}
+  return "";
+}
+const term=makeIbmTerminal({scene,position:[-2.7573,0.873,-1.1926],size:[0.283,0.208],rotationY:1.2896,onType:k=>sfx.type(k),onExit:()=>go("home"),onDebug:()=>flyStart(),onOption:optionHook,onOpenLink:href=>{if(href.startsWith("mailto:"))location.href=href;else window.open(href,"_blank","noopener")}});
+addEventListener("keydown",e=>{if(e.metaKey||e.altKey||document.getElementById("crt-gate")||lofiDlg.open)return;if(e.ctrlKey&&!(term.active&&/^c$/i.test(e.key)))return;if(term.onKey(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
+addEventListener("keyup",e=>term.onKeyUp(e),true);
+addEventListener("blur",()=>term.releaseKeys());
 
 // COMPUTER power: its red monitor button (PC_MonPwrButton, x -2.689, y .738..755, z -1.334..-1.317) switches the green screen off and on
 // with the same collapse as the TV. The baked glow on the keyboard and desk stays as it is.
