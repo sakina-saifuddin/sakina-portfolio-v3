@@ -847,28 +847,44 @@ const callBubble=(()=>{
       icon.material.rotation=w*(0.34*Math.sin(now*0.118)+0.08*Math.sin(now*0.047));
     }};
 })();
-// Sticky note with every key. A small yellow note sits on the CRT's bezel; "?" (or a click on it, or the "? Keys" button) lifts it to the top right of the
-// screen, and ESC puts it back on the TV. Keys pressed while it is open still work: the note stays open until ESC.
+// Sticky note with every key. A pad of sticky notes sits on the desk; "?" (or a click on it, or the "? Keys" button) lifts it to the top right of the
+// screen, and ESC puts it back on the desk. Keys pressed while it is open still work: the note stays open until ESC.
 const keysNote=(()=>{
   const el=$("keys-note"),btn=$("btn-keys");
-  const cv=document.createElement("canvas");cv.width=cv.height=256;const x=cv.getContext("2d");
-  const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;
-  const draw=()=>{
-    x.clearRect(0,0,256,256);
-    const g=x.createLinearGradient(0,0,0,256);g.addColorStop(0,"#f8e78c");g.addColorStop(1,"#e9cf5a");
-    x.fillStyle=g;x.fillRect(6,6,244,244);
-    x.fillStyle="#2e2610";x.textAlign="center";x.textBaseline="middle";
-    let fs=70;x.font="700 "+fs+"px Caveat, cursive";
-    while(fs>30&&x.measureText("ALL KEYS").width>210){fs-=2;x.font="700 "+fs+"px Caveat, cursive"}   // fits the note whichever font is loaded
-    x.fillText("ALL KEYS",128,78);
-    x.fillStyle="#b3402c";x.font="700 130px Caveat, cursive";x.fillText("?",128,174);
-    tex.needsUpdate=true;
+  // A pad of yellow sticky notes on the desk between the cup and the remote, set at a slant, with a curled corner and a short scribble on the top sheet.
+  const topC=document.createElement("canvas");topC.width=topC.height=256;const x=topC.getContext("2d");
+  const topT=new THREE.CanvasTexture(topC);topT.colorSpace=THREE.SRGBColorSpace;topT.anisotropy=8;
+  const drawTop=()=>{
+    let g=x.createLinearGradient(0,0,256,256);g.addColorStop(0,"#fbec7e");g.addColorStop(1,"#f1d74e");x.fillStyle=g;x.fillRect(0,0,256,256);
+    g=x.createRadialGradient(150,90,10,128,128,210);g.addColorStop(0,"rgba(255,255,255,.2)");g.addColorStop(1,"rgba(150,110,0,.16)");x.fillStyle=g;x.fillRect(0,0,256,256);
+    x.save();x.beginPath();x.moveTo(0,148);x.quadraticCurveTo(80,150,118,256);x.lineTo(0,256);x.closePath();   // shadow under the lifted corner
+    g=x.createLinearGradient(0,150,80,256);g.addColorStop(0,"rgba(120,85,0,0)");g.addColorStop(1,"rgba(120,85,0,.4)");x.fillStyle=g;x.fill();x.restore();
+    x.beginPath();x.moveTo(0,170);x.quadraticCurveTo(66,150,104,256);x.lineTo(0,256);x.closePath();   // the curled flap: its underside is a little darker
+    g=x.createLinearGradient(0,170,60,256);g.addColorStop(0,"#f4dc5c");g.addColorStop(1,"#d9b52a");x.fillStyle=g;x.fill();
+    x.lineWidth=3;x.strokeStyle="rgba(255,246,170,.85)";x.beginPath();x.moveTo(0,170);x.quadraticCurveTo(66,150,104,256);x.stroke();
+    x.fillStyle="#3a2d12";x.textAlign="center";x.textBaseline="middle";
+    let fs=60;x.font="700 "+fs+"px Caveat, cursive";
+    while(fs>26&&x.measureText("ALL KEYS").width>190){fs-=2;x.font="700 "+fs+"px Caveat, cursive"}
+    x.save();x.translate(150,66);x.rotate(-0.07);x.fillText("ALL KEYS",0,0);x.restore();
+    x.fillStyle="#b3402c";x.font="700 112px Caveat, cursive";x.save();x.translate(158,150);x.rotate(-0.06);x.fillText("?",0,0);x.restore();
+    topT.needsUpdate=true;
   };
-  draw();document.fonts?.load("700 70px Caveat").then(draw).catch(()=>{});
-  const S=0.058;
-  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(S,S),new THREE.MeshBasicMaterial({map:tex,color:0xd8d0c8,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
-  mesh.position.set(CRT.cx-CRT.w/2-0.03,CRT.cy-CRT.h/2+0.0,CRT.z+0.0175);mesh.rotation.z=0.09;   // stuck on the lower left of the bezel (its front face is about 1 cm in front of the screen plane)
+  drawTop();document.fonts?.load("700 60px Caveat").then(drawTop).catch(()=>{});
+  const sideC=document.createElement("canvas");sideC.width=sideC.height=64;{
+    const g=sideC.getContext("2d");g.fillStyle="#e9cd45";g.fillRect(0,0,64,64);
+    for(let i=0;i<64;i+=3){g.fillStyle="rgba(150,105,0,.38)";g.fillRect(0,i,64,1)}
+  }
+  const sideT=new THREE.CanvasTexture(sideC);sideT.colorSpace=THREE.SRGBColorSpace;
+  const TINT=0xd6c8aa;   // the pad is not baked, so it is dimmed a little to sit in the lamp-lit desk
+  const PAD=0.092,THICK=0.016;
+  const sideM=new THREE.MeshBasicMaterial({map:sideT,color:TINT});
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(PAD,THICK,PAD),[sideM,sideM,new THREE.MeshBasicMaterial({map:topT,color:TINT}),sideM,sideM,sideM]);
+  mesh.position.set(-0.07,0.7258+THICK/2,-1.945);mesh.rotation.y=-0.5;
   mesh.name="KeysNote";mesh.userData.keysNote=true;mesh.renderOrder=3;scene.add(mesh);
+  {const sc=document.createElement("canvas");sc.width=sc.height=64;const g=sc.getContext("2d"),r=g.createRadialGradient(32,32,8,32,32,32);
+    r.addColorStop(0,"rgba(0,0,0,.55)");r.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=r;g.fillRect(0,0,64,64);
+    const sh=new THREE.Mesh(new THREE.PlaneGeometry(PAD*1.5,PAD*1.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+    sh.rotation.x=-Math.PI/2;sh.position.y=-THICK/2+0.0005;sh.renderOrder=2;mesh.add(sh);}
   let open=false,anim=null;const proj=new THREE.Vector3();
   const home=()=>{camera.updateMatrixWorld();proj.copy(mesh.position).project(camera);
     return {x:Math.max(0,Math.min(innerWidth,(proj.x+1)/2*innerWidth)),y:Math.max(0,Math.min(innerHeight,(1-proj.y)/2*innerHeight))}};
@@ -889,7 +905,7 @@ const keysNote=(()=>{
   const toggle=()=>open?hide():show();
   btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
   return {mesh,get open(){return open},show,hide,toggle,
-    sync(){mesh.visible=!open&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
+    sync(){mesh.visible=!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
 })();
 function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
 function syncMenu(){
@@ -975,7 +991,7 @@ function moveHint(h,ev){
 // Every clickable thing says what a click does, in the hint that follows the cursor.
 function tipFor3d(h){
   switch(h.kind){
-    case"keys":return "CLICK TO TAKE THE STICKY NOTE WITH ALL THE KEYS · KEY ?";
+    case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
     case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
     case"ibm":return "CLICK TO USE THE COMPUTER";
@@ -1006,8 +1022,8 @@ function tipFor(el){
   switch(b.id){
     case"pad-close":return "CLICK TO PUT THE PAPER BACK DOWN · ESC";
     case"panel-close":return "CLICK TO CLOSE AND GO BACK TO THE DESK · ESC";
-    case"btn-keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE KEYS · KEY ?";
-    case"keys-esc":return "CLICK TO PUT THE NOTE BACK ON THE TV · ESC";
+    case"btn-keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
+    case"keys-esc":return "CLICK TO PUT THE NOTE BACK ON THE DESK · ESC";
     case"btn-credits":return "CLICK TO SEE THE CREDITS";
     case"back":return "CLICK TO GO BACK TO THE DESK · ESC";
     case"btn-sound":return audio.rainOn?"CLICK TO TURN THE RAIN SOUND OFF":"CLICK TO TURN THE RAIN SOUND ON";

@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="crt-gate.css?v=10">
 <link rel="stylesheet" href="pad.css">
-<link rel="stylesheet" href="felix-ui.css?v=19">
+<link rel="stylesheet" href="felix-ui.css?v=20">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
 </script>
@@ -38,15 +38,6 @@ html[data-view="ibm"] #tint{opacity:.12}
     <a href="https://askksakina.netlify.app" target="_blank" rel="noopener" data-tip="CLICK TO CHAT ABOUT MY RESUME (OPENS IN A NEW TAB)">ASK</a>
     <button type="button" data-view="contact" data-tip="CLICK TO GO TO THE COMPUTER: CONTACT">CONTACT</button>
   </nav>
-  <ul class="topkeys" aria-label="Keyboard shortcuts">
-    <li><button type="button" data-view="tapes"><kbd>T</kbd> Tapes</button></li>
-    <li><button type="button" data-view="ibm"><kbd>C</kbd> Use computer</button></li>
-    <li><button type="button" data-view="pad"><kbd>N</kbd> Work</button></li>
-    <li><button type="button" data-view="desk"><kbd>Z</kbd> Zoom TV</button></li>
-    <li><button type="button" data-view="notepad"><kbd>B</kbd> Notebook</button></li>
-    <li><button type="button" data-view="phone"><kbd>H</kbd> Phone</button></li>
-    <li><button type="button" id="btn-keys" aria-controls="keys-note" aria-expanded="false"><kbd>?</kbd> Keys</button></li>
-  </ul>
   <p>DATA SCIENTIST · UNIVERSITY OF HOUSTON</p>
 </header>
 
@@ -57,34 +48,40 @@ html[data-view="ibm"] #tint{opacity:.12}
   <div id="panel-body"></div>
 </aside>
 
-<aside id="keys-note" class="note" role="dialog" aria-label="All the keys" hidden>
-  <h2><span>All the keys</span><button type="button" class="esc" id="keys-esc">ESC &middot; PUT BACK</button></h2>
-  <h3>Go to</h3>
-  <ul>
-    <li><button type="button" data-view="tapes"><kbd>T</kbd> Tapes</button></li>
-    <li><button type="button" data-view="ibm"><kbd>C</kbd> Use computer</button></li>
-    <li><button type="button" data-view="pad"><kbd>N</kbd> Work notes</button></li>
-    <li><button type="button" data-view="desk"><kbd>Z</kbd> Zoom in on the TV</button></li>
-    <li><button type="button" data-view="notepad"><kbd>B</kbd> Notebook</button></li>
-    <li><button type="button" data-view="phone"><kbd>H</kbd> Phone</button></li>
-    <li><button type="button" data-view="clocks"><kbd>K</kbd> Clocks</button></li>
-    <li><button type="button" data-view="window"><kbd>W</kbd> Window</button></li>
-    <li><button type="button" data-view="chair"><kbd>R</kbd> Chair</button></li>
-    <li><button type="button" data-view="power"><kbd>P</kbd> TV on / off</button></li>
-  </ul>
-  <h3>At the TV</h3>
-  <ul>
-    <li><span><kbd>1-6</kbd> Play a tape</span></li>
-    <li><span><kbd>SPACE</kbd> Pause</span></li>
-    <li><span><kbd>[ ]</kbd> Previous / next tape</span></li>
-    <li><span><kbd>E</kbd> Eject</span></li>
-    <li><span><kbd>M</kbd> Mute the video</span></li>
-  </ul>
-  <h3>Anywhere</h3>
-  <ul>
-    <li><span><kbd>ESC</kbd> Put this note back, then go back to the desk</span></li>
-    <li><span><kbd>?</kbd> Open or close this note</span></li>
-  </ul>
+<aside id="keys-note" class="note" role="dialog" aria-label="All the controls" hidden>
+  <h2><span>All controls</span><button type="button" class="esc" id="keys-esc">ESC &middot; PUT BACK</button></h2>
+  <div class="cols">
+    <section>
+      <h3>Go to</h3>
+      <ul>
+        <li><button type="button" data-view="tapes"><kbd>T</kbd> Tapes</button></li>
+        <li><button type="button" data-view="ibm"><kbd>C</kbd> Use computer</button></li>
+        <li><button type="button" data-view="pad"><kbd>N</kbd> Work notes</button></li>
+        <li><button type="button" data-view="desk"><kbd>Z</kbd> Zoom TV</button></li>
+        <li><button type="button" data-view="notepad"><kbd>B</kbd> Notebook</button></li>
+        <li><button type="button" data-view="phone"><kbd>H</kbd> Phone</button></li>
+        <li><button type="button" data-view="clocks"><kbd>K</kbd> Clocks</button></li>
+        <li><button type="button" data-view="window"><kbd>W</kbd> Window</button></li>
+        <li><button type="button" data-view="chair"><kbd>R</kbd> Chair</button></li>
+        <li><button type="button" data-view="power"><kbd>P</kbd> TV on / off</button></li>
+      </ul>
+    </section>
+    <section>
+      <h3>At the TV</h3>
+      <ul>
+        <li><span><kbd>1-6</kbd> Play tape</span></li>
+        <li><span><kbd>SPACE</kbd> Pause</span></li>
+        <li><span><kbd>[ ]</kbd> Prev / next</span></li>
+        <li><span><kbd>E</kbd> Eject</span></li>
+        <li><span><kbd>M</kbd> Mute video</span></li>
+      </ul>
+      <h3>Anywhere</h3>
+      <ul>
+        <li><span><kbd>ESC</kbd> Put back, then home</span></li>
+        <li><span><kbd>?</kbd> Open / close</span></li>
+      </ul>
+    </section>
+  </div>
 </aside>
 
 <div id="hint" class="hint" aria-hidden="true"></div>
@@ -115,6 +112,15 @@ html[data-view="ibm"] #tint{opacity:.12}
     <button type="button" data-view="phone">Phone</button>
     <button type="button" data-view="power">TV power</button>
   </div>
+  <ul class="ctrl" aria-label="Keyboard shortcuts">
+    <li><button type="button" data-view="tapes"><kbd>T</kbd> Tapes</button></li>
+    <li><button type="button" data-view="ibm"><kbd>C</kbd> Use computer</button></li>
+    <li><button type="button" data-view="pad"><kbd>N</kbd> Work</button></li>
+    <li><button type="button" data-view="desk"><kbd>Z</kbd> Zoom TV</button></li>
+    <li><button type="button" data-view="notepad"><kbd>B</kbd> Notebook</button></li>
+    <li><button type="button" data-view="phone"><kbd>H</kbd> Phone</button></li>
+    <li><button type="button" id="btn-keys" aria-controls="keys-note" aria-expanded="false"><kbd>?</kbd> Keys</button></li>
+  </ul>
   <ul class="keys vcr">
     <li><span><kbd>1-6</kbd> Play tape</span></li>
     <li><span><kbd>SPACE</kbd> Pause</span></li>
@@ -152,7 +158,7 @@ html[data-view="ibm"] #tint{opacity:.12}
 
 <div class="scan" aria-hidden="true"></div>
 <script type="module" src="crt-gate.js?v=10"></script>
-<script type="module" src="main-pad.js?v=126"></script>
+<script type="module" src="main-pad.js?v=127"></script>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="nightgrade" color-interpolation-filters="sRGB">
 <feComponentTransfer><feFuncR type="gamma" amplitude="1.0" exponent="1.0" offset="0.012"/><feFuncG type="gamma" amplitude="1.0" exponent="1.03" offset="0.010"/><feFuncB type="gamma" amplitude="1.0" exponent="1.0" offset="0.016"/></feComponentTransfer></filter></svg>
 <p id="phone-cap" role="status" hidden>&ldquo;Hi. I&rsquo;m Sakina. I&rsquo;m a graduate student at the University of Houston, and this is my portfolio. I work with data, and this is a short summary of me. So far I have six experiences, and five projects, and you can open any of them from the tapes on my desk. Thanks for picking up.&rdquo;</p>
