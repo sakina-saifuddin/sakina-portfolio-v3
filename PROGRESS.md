@@ -241,3 +241,8 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 ## 2026-11-06 — Ringtone quieter
 - Phone ring gain lowered from 0.02 to 0.011 (about 5 dB softer). `phone.js?v=14`.
 - 2026-11-06 — **newversion: bottom-right controls no longer block the scene** (`felix-ui.css?v=27`). `.bar` and its lists/items are `pointer-events:none`; only the buttons (T Tapes, C Use computer, ..., Credits/Sound/Lo-fi) take clicks, so the remote (and anything behind the text) can be clicked next to the controls. Checked on a standalone copy of the bar (gaps hit the canvas, buttons hit buttons); not re-run on the full 3D page or Netlify.
+
+## Loading-screen stills refreshed from the current room
+- `crt-still.jpg` (1600x900), `crt-still-wide.jpg` (2100x900), `crt-still-p.jpg` (720x1280) and `crt-still-m.jpg` (900x506) are new captures of the live room's home view (desk, tapes, window photo as they are now). Taken in the cloud with software rendering (SwiftShader), so slightly softer than a real GPU.
+- Desktop/wide glass corners unchanged (re-measured, identical). Portrait corners and box updated in `crt-gate.js` (`SD.p`) because the live portrait framing changed. Cache tags: crt-still v6, wide v6, p v2, m v2, crt-gate.js v11.
+- Checked: loading screen overlay lines up with the TV glass at 1600x900, 2100x900 (rendered) and 360x640. Not checked: the published site.

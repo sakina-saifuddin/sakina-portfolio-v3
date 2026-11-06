@@ -16,10 +16,10 @@ if(loader){
   const PORT=matchMedia("(max-aspect-ratio: 9/16)");
   const SD={
     d:{w:1600,h:900,Q:[[609.5,379.1],[903.3,377.1],[901.9,592.9],[612.1,600.1]],BOX:[609,377,295,224]},
-    p:{w:360,h:640,Q:[[115.7,296.1],[215.1,295.3],[214.7,368.7],[116.3,370.9]],BOX:[115,295,101,76]}
+    p:{w:360,h:640,Q:[[95.5,288.6],[225.8,287.7],[225.2,383.4],[96.7,386.5]],BOX:[95,287,132,100]}
   };
   let S=PORT.matches?SD.p:SD.d;
-  const stillSrc=PORT.matches?"crt-still-p.jpg?v=1":matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=5":"crt-still.jpg?v=5";
+  const stillSrc=PORT.matches?"crt-still-p.jpg?v=2":matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=6":"crt-still.jpg?v=6";
   const reveal=()=>gate.classList.add("shown");
   const img=new Image();img.onload=reveal;img.onerror=reveal;img.src=stillSrc;
   setTimeout(reveal,4000);
