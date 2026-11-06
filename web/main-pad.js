@@ -758,7 +758,7 @@ function setupCalc(){
   const mat=src.material;
   // The calculator gets a copy of the desk material whose position-based tints (the healing and brightening patches around the desk) are
   // computed from its REST position. So it keeps exactly the colour it has on the desk, wherever it is held.
-  const cm=mat.clone(),prevCm=mat.onBeforeCompile,restM=new THREE.Matrix4().compose(new THREE.Vector3(CALC.cx,CALC.y,CALC.cz),new THREE.Quaternion().setFromAxisAngle(_cy,-CALC.yaw),new THREE.Vector3(1,1,1));
+  const cm=mat.clone(),prevCm=mat.onBeforeCompile,restM=new THREE.Matrix4().makeTranslation(30,30,30);   // far from every desk tint zone: no healing/brightening patches act on the calculator
   cm.onBeforeCompile=(sh,r)=>{
     if(prevCm)prevCm.call(mat,sh,r);
     sh.uniforms.uRestM={value:restM};
@@ -870,8 +870,10 @@ function calcPress(label){
     if(s.op){const b=s.fresh&&s.last!==null&&s.acc!==null?s.last:calcNum(),r=calcApply(s.acc!==null?s.acc:calcNum(),s.op,b);s.last=b;calcShow(r);s.acc=s.err?null:parseFloat(s.disp);s.fresh=true}
   }else if(label==="%"){
     const x=calcNum();let r=x/100;
-    if(s.op&&s.acc!==null&&(s.op==="+"||s.op==="−"))r=s.acc*x/100;
-    calcShow(r);s.fresh=false;
+    if(s.op&&s.acc!==null){
+      if(s.op==="+"||s.op==="−"){r=s.acc*x/100;calcShow(r);s.fresh=false}                       // 200 + 10 %  ->  20, then = gives 220
+      else{r=s.op==="×"?s.acc*x/100:(x===0?Infinity:s.acc/(x/100));calcShow(r);s.acc=null;s.op=null;s.fresh=true}   // 5 × 5 %  ->  0.25
+    }else{calcShow(r);s.fresh=false}
   }else if(label==="√"){
     const x=calcNum();if(x<0)s.err=true;else{calcShow(Math.sqrt(x));s.fresh=true}
   }else if(label==="C"){s.err=false;s.disp="0";s.fresh=true}

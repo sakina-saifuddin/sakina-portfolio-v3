@@ -227,3 +227,8 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 
 ## Phone: caption Version 2, INCOMING sign removed
 - Caption now uses Sakina's Version 2 transcript (exact words). The white "INCOMING" sign above the ringing phone is hidden (`syncCall` passes false); the phone still rings, shakes and is clickable. phone.js v13, main-pad.js v142.
+
+## 2026-11-06 — Calculator: clean keys, correct percent
+- Smeared/ghost patches on keys (%, √, −, +, =, MR, 1) came from the desk's healing tint acting on the calculator. It is now excluded for the calculator, so every key face is clean at rest and lifted; the keys still look as before otherwise.
+- `%` now works like a pocket calculator: 5 × 5 % = 0.25, 50 ÷ 5 % = 1000, 200 + 10 % = 20 then = 220.
+- Verified: arithmetic unit test (15 sequences) and real keyboard sequences in the page match; clicking 8,2,5,0,9,1 shows 825091. Local software render only.
