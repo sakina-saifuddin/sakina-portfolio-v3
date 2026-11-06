@@ -127,3 +127,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   camera moves (billboards toward the camera, drawn on top, no bloom). The phone is at the very edge of the home view, hence the long pointer so the bubble body stays on screen.
   Visible only while `phone.mode==="ringing"`; click on it answers the phone (added to `pick` targets only while visible). `main-pad.js?v=119`. Tested locally: bubble visible after Enter,
   click flies to the phone, lifts the handset and the bubble disappears; no console errors. Shake animation and ring sound not seen/heard in the cloud.
+
+- 2026-11-06 — **newversion: window view uses the enlarged photo (`sakina-view-r10.glb`), runtime zoom off.** Sakina's phone screenshot of the live site showed black lower panes and smeared
+  (low-res panorama) patches outside the window. `main-pad.js` now loads `sakina-view-r10.glb` (the Berlin photo patch enlarged 3.2x in angle space about the vanishing point, anchor px 1700, built earlier by
+  `pipeline/tools/zoom_view_photo.mjs`) and `VIEW_ZOOM` defaults to 1 (was 2.3 scaled at runtime on the small patch; `?vz=` still overrides). Compared at phone size (430x932, window view, drag left / right / steep down):
+  before = smeared panorama, after = real photo (skyline, METRO, TV tower, rails) everywhere. Trade-off: the photo is magnified more (source is 2576x1718), so fine detail is limited by that file.
+  Not changed: baked wood of the window sill looks soft (room bake resolution). `main-pad.js?v=120`.

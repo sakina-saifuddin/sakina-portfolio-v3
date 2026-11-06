@@ -275,9 +275,9 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.gl
 const outP=new Promise((res,rej)=>loader.load("sakina-outside-r4lo.glb",g=>{g.scene.position.y=-10;scene.add(g.scene);res()},
   e=>{if(e.lengthComputable){progressOut=e.loaded/e.total;setProgress()}},rej));
 
-const VIEW_ZOOM=parseFloat(new URLSearchParams(location.search).get("vz")||"2.3");
+const VIEW_ZOOM=parseFloat(new URLSearchParams(location.search).get("vz")||"1");
 // Berlin rail-yard night photo behind the window (round 4, approved): two unlit emissive pictures ~80 m away (photo patch + panorama).
-const viewP=new Promise(res=>loader.load("sakina-view-r4lo.glb",g=>{
+const viewP=new Promise(res=>loader.load("sakina-view-r10.glb",g=>{
   g.scene.traverse(o=>{if(o.isMesh){o.material.side=THREE.DoubleSide;o.material.envMapIntensity=0;o.renderOrder=-1}});
   {const b=new THREE.Box3().setFromObject(g.scene),c=b.getCenter(new THREE.Vector3());g.scene.scale.setScalar(VIEW_ZOOM);g.scene.position.copy(c).multiplyScalar(1-VIEW_ZOOM)}
   scene.add(g.scene);
