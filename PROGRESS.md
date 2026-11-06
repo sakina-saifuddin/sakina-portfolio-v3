@@ -237,3 +237,6 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   Tested (local headless Chromium, software render): rest look identical to before; held look crisp; desk footprint shows no dark patch while held (slight streaking in the healed patch); put-back via V returns to rest; no console errors; power/eject/play/pause/stop/mute/volume/channel/tape keys fire.
   NOT verified: FF / REC replay / TIMER slow-mo and seeking with real video (headless can't decode the H.264 tapes), the real Netlify URL, a real GPU.
 - 2026-11-06 — **newversion: remote keys look real** (`remote.js?v=6`, `main-pad.js?v=146`). Held remote keys redrawn as raised moulded buttons (drop shadow, dark gap, bevelled rim, glossy dome); number keys cream with dark digits, transport keys dark with cream symbols (play green, power/rec red), printed play/rew/ff/stop/pause/rec symbols, bigger legends, CH rocker with two arrows. Only the held-remote overlay changed; the remote on the desk and key positions/hit areas are unchanged. Checked in a local headless render only; not on Netlify or a real GPU.
+
+## 2026-11-06 — Ringtone quieter
+- Phone ring gain lowered from 0.02 to 0.011 (about 5 dB softer). `phone.js?v=14`.
