@@ -30,6 +30,15 @@ kbd{font:inherit;display:inline-block;min-width:1.7em;padding:.1em .35em;margin-
 .panel .pager button:hover{color:var(--amber)}
 .hint{position:fixed;left:50%;bottom:4.6rem;transform:translateX(-50%);font-size:.68rem;letter-spacing:.2em;color:var(--dim);opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .hint.show{opacity:1}
+.call-hint{position:fixed;z-index:6;top:max(5.6rem,calc(env(safe-area-inset-top) + 4.6rem));left:clamp(1.2rem,3vw,2.6rem);display:flex;align-items:center;gap:.7rem;padding:.55rem .9rem .55rem .75rem;border:1px solid rgba(224,160,74,.55);border-radius:2rem;background:rgba(13,9,6,.72);backdrop-filter:blur(6px);color:var(--ink);font-size:.66rem;letter-spacing:.18em;animation:callGlow 1.6s ease-in-out infinite}
+.call-hint[hidden]{display:none}
+.call-hint b{font-weight:400;color:var(--amber)}
+.call-hint:hover{background:rgba(40,26,12,.85)}
+.call-dot{width:.55rem;height:.55rem;border-radius:50%;background:#ff4a36;box-shadow:0 0 0 0 rgba(255,74,54,.6);animation:callDot 1s ease-out infinite}
+@keyframes callDot{0%{box-shadow:0 0 0 0 rgba(255,74,54,.6)}100%{box-shadow:0 0 0 .6rem rgba(255,74,54,0)}}
+@keyframes callGlow{0%,100%{border-color:rgba(224,160,74,.25)}50%{border-color:rgba(224,160,74,.8)}}
+@media (prefers-reduced-motion:reduce){.call-hint,.call-dot{animation:none}}
+@media (max-width:720px){.call-hint b{display:none}}
 .loader{position:fixed;inset:0;z-index:20;display:grid;place-content:center;gap:1.1rem;text-align:center;background:var(--bg);transition:opacity .9s}
 .loader.done{opacity:0;pointer-events:none}
 .loader-title{font:400 1.7rem "DM Serif Display",Georgia,serif;letter-spacing:.08em}

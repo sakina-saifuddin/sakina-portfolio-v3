@@ -111,3 +111,7 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - 2026-11-06 — **newversion: softer phone ring.** `web/phone.js`: ring tone changed from a square wave (gain 0.018) to a sine (gain 0.0065, soft attack/release),
   and only the first 3 rings are audible (`RING_MAX`); the handset shake and the blinking red lamp continue until answered. `phone.js?v=7`, `main-pad.js?v=113`.
   Not listened to (no audio in the cloud): needs a check on the laptop; adjust `RING_GAIN` / `RING_MAX`.
+
+- 2026-11-06 — **newversion: "INCOMING CALL" chip.** A small pulsing pill (red dot, amber border glow; "CLICK TO ANSWER" on wider screens) at the top-left under the name,
+  shown while the phone is ringing (`phone.mode==="ringing"` and the entry gate is gone); click = `go("phone")` (answers). Hides when answered. `index.html` (`#call-hint`),
+  `style.css` (`.call-hint`, reduced-motion = no pulse), `main-pad.js` (`syncCall`), `main-pad.js?v=114`. Tested locally: chip appears after entering, click makes it hide, no console errors.

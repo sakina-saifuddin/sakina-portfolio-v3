@@ -744,6 +744,13 @@ document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",(
 $("home-link").addEventListener("click",()=>{if(!document.documentElement.classList.contains("crt-gating"))go("home")});
 let menuIbm="ibm";
 const menuLinks=[...document.querySelectorAll(".menu [data-view]")];let menuCur="";
+// "Incoming call" chip: shown while the phone is ringing (the ring itself is soft and stops after a few rings), click answers it.
+const callHint=$("call-hint");let callOn=false;
+callHint?.addEventListener("click",()=>go("phone"));
+function syncCall(){
+  const on=!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate");
+  if(on!==callOn){callOn=on;callHint.hidden=!on}
+}
 function syncMenu(){
   const cur=padOpen()?"pad":term.active?menuIbm:"";
   if(cur===menuCur)return;menuCur=cur;
@@ -1038,7 +1045,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();syncCall();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
