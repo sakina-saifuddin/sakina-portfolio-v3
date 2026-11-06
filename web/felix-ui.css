@@ -132,19 +132,22 @@ html:not([data-view="ibm"]):not([data-view="fly"]):not([data-view="desk"]):not([
 html[data-view="notepad"] .bar .ctrl{display:none}
 @media (max-width:720px){.bar .ctrl{display:none}}
 
-.note{--s:min(700px,calc(100vw - 24px),calc((100vh - 130px) * 1.457));position:fixed;right:20px;top:calc(96px + env(safe-area-inset-top,0px));z-index:10;width:var(--s);height:calc(var(--s) / 1.457);box-sizing:border-box;overflow:hidden;padding:calc(var(--s)/40) calc(var(--s)/32);font-size:calc(var(--s)/31);color:#2e2610;background:linear-gradient(135deg,#f9e56f,#f1d555);border-radius:1px;box-shadow:0 16px 34px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.55) inset;transform:rotate(-1.2deg);font-family:"Caveat","Courier Prime",cursive}
+.note{--s:min(700px,calc(100vw - 24px),calc((100vh - 130px) * 1.457));position:fixed;right:20px;top:calc(96px + env(safe-area-inset-top,0px));z-index:10;width:var(--s);height:calc(var(--s) / 1.457);box-sizing:border-box;overflow:hidden;padding:calc(var(--s)/40) calc(var(--s)/32);font-size:calc(var(--s)/31);color:#2e2610;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .05  0 0 0 .33 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>"),linear-gradient(180deg,rgba(255,255,255,.22) 0,rgba(255,255,255,0) 7%),linear-gradient(135deg,#f9e56f,#f1d555);border-radius:1px 1px 2px 1px;box-shadow:0 16px 34px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.55) inset;transform:rotate(-1.2deg);font-family:"Caveat","Courier Prime",cursive}
 .note[hidden]{display:none}
-.note h2{display:flex;justify-content:space-between;align-items:center;gap:.4em;margin:0 0 .3em;font:700 1.35em/1 "Caveat",cursive;color:#2e2610}
-.note .esc{flex:none;padding:.05em .5em 0;font-family:var(--osd);font-size:.8em;letter-spacing:.05em;color:#2e2610;background:rgba(255,255,255,.3);border:1px solid rgba(46,38,16,.45);border-radius:2px;cursor:pointer;white-space:nowrap}
+.note h2{display:flex;justify-content:space-between;align-items:center;gap:.4em;margin:0 0 .15em;font:700 2.6em/.9 "Caveat",cursive;letter-spacing:.02em;color:#2e2610;border-bottom:.07em solid rgba(46,38,16,.55)}
+.note::after{content:"";position:absolute;right:0;bottom:0;width:11%;aspect-ratio:1;background:linear-gradient(315deg,rgba(0,0,0,0) 50%,rgba(90,70,10,.28) 50%,rgba(255,244,170,.9) 64%,#f6e077 100%);border-top-left-radius:100% 0;pointer-events:none}
+.note .esc{flex:none;padding:.05em .5em 0;font-family:var(--osd);font-size:.3em;letter-spacing:.05em;color:#2e2610;background:rgba(255,255,255,.3);border:1px solid rgba(46,38,16,.45);border-radius:2px;cursor:pointer;white-space:nowrap}
 .note .esc:hover{background:rgba(255,255,255,.6)}
 .note .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:0 .9em}
 .note li b{font-weight:700;color:#a03a1c}
-.note h3{margin:.35em 0 .1em;font:700 .8em/1 "Caveat",cursive;letter-spacing:.12em;text-transform:uppercase;color:#a03a1c}
+.note h3{margin:.4em 0 .12em;font:700 1em/1 "Caveat",cursive;letter-spacing:.12em;text-transform:uppercase;color:#a03a1c}
 .note ul{margin:0;padding:0;list-style:none}
 .note li button,.note li span{display:flex;align-items:baseline;gap:.4em;width:100%;padding:0;text-align:left;font:600 .95em/1.18 "Caveat",cursive;color:#2e2610}
 .note li button{cursor:pointer}
 .note li button:hover{color:#a03a1c}
-.note kbd{flex:none;min-width:1.55em;padding:0 .2em;text-align:center;font:.9em/1.15 var(--osd);color:#2e2610;background:rgba(255,255,255,.4);border:1px solid rgba(46,38,16,.4);border-radius:2px}
+.note li button:hover kbd{background:#fff7c2;border-color:#a03a1c}
+.note li button:active kbd{transform:translateY(1px)}
+.note kbd{flex:none;min-width:1.7em;padding:0 .25em;text-align:center;font:.85em/1.2 var(--osd);color:#2e2610;background:rgba(255,255,255,.55);border:1px solid rgba(46,38,16,.55);border-bottom-width:2px;border-radius:3px}
 @media (max-width:720px){.note{top:calc(110px + env(safe-area-inset-top,0px));right:12px}}
 
 /* calculator in hand: the bottom row lists its keys instead of the usual ones */

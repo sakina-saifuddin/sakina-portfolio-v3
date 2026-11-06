@@ -1296,21 +1296,19 @@ const keysNote=(()=>{
   const inkCanvas=()=>{
     const W=1180,H=810,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
     g.fillStyle="#2b2a33";g.textBaseline="alphabetic";
-    const col1=[["T","Tapes"],["C","Use computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair"],["P","TV on / off"]];
-    const col2=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"]];
-    const col3=[["ESC","Put back"],["?","This note"]];
-    const col4=[["Lamps","on / off"],["Mug","take a sip"],["Tape","play it"],["TV knob","on / off"],["Phone","answer"],["Book","turn page"],["Window","look out"],["Pad","this note"]];
-    g.font="700 118px Caveat, cursive";g.save();g.translate(70,150);g.rotate(-0.025);g.fillText("GUIDE",0,0);
-    g.lineWidth=7;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,28);g.quadraticCurveTo(190,16,372,30);g.stroke();g.restore();
-    const row=(k,v,x,y)=>{g.font="700 50px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 50px Caveat, cursive";g.fillText(v,x+Math.max(w+14,78),y)};
+    const col1=[["T","Tapes"],["C","Use computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair"]];
+    const col2=[["L","Desk lamp"],["F","Standing lamp"],["S","Sip coffee"],["U","Calculator"],["I","Spin pencils"],["P","TV on / off"]];
+    const col3=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"]];
+    const col4=[["ESC","Put back"],["?","Guide"]];
+    g.font="700 150px Caveat, cursive";g.save();g.translate(70,160);g.rotate(-0.025);g.fillText("GUIDE",0,0);
+    g.lineWidth=8;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,32);g.quadraticCurveTo(240,18,470,34);g.stroke();g.restore();
+    const row=(k,v,x,y)=>{g.font="700 46px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 46px Caveat, cursive";g.fillText(v,x+Math.max(w+14,96),y)};
+    const head=(t,x,y)=>{g.font="700 40px Caveat, cursive";g.fillStyle="#7a2b14";g.fillText(t,x,y);g.fillStyle="#2b2a33"};
     g.save();g.rotate(0.012);
-    col1.forEach((r,i)=>row(r[0],r[1],70,262+i*53));
-    g.font="700 40px Caveat, cursive";g.fillText("AT THE TV",470,262);
-    col2.forEach((r,i)=>row(r[0],r[1],470,320+i*50));
-    g.font="700 40px Caveat, cursive";g.fillText("ANYWHERE",470,600);
-    col3.forEach((r,i)=>row(r[0],r[1],470,654+i*50));
-    g.font="700 40px Caveat, cursive";g.fillText("CLICK ON",830,262);
-    col4.forEach((r,i)=>row(r[0],r[1],830,320+i*50));
+    head("GO TO",70,262);col1.forEach((r,i)=>row(r[0],r[1],70,316+i*50));
+    head("ON THE DESK",440,262);col2.forEach((r,i)=>row(r[0],r[1],440,316+i*50));
+    head("ANYWHERE",440,640);col4.forEach((r,i)=>row(r[0],r[1],440,690+i*50));
+    head("AT THE TV",810,262);col3.forEach((r,i)=>row(r[0],r[1],810,316+i*50));
     g.restore();
     const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
   };
@@ -1346,7 +1344,7 @@ const keysNote=(()=>{
     sh.rotation.x=-Math.PI/2;sh.position.set(0.004,0.0003,-0.003);sh.renderOrder=2;holder.add(sh);
     holder.position.copy(TARGET);holder.rotation.y=SLANT;
   }
-  let open=false,anim=null;const proj=new THREE.Vector3();
+  let open=false,anim=null,lifted=false;const proj=new THREE.Vector3();
   const home=()=>{camera.updateMatrixWorld();proj.copy(holder.position);proj.y+=0.02;proj.project(camera);
     return {x:Math.max(0,Math.min(innerWidth,(proj.x+1)/2*innerWidth)),y:Math.max(0,Math.min(innerHeight,(1-proj.y)/2*innerHeight))}};
   const away=()=>{const r=el.getBoundingClientRect(),p=home();
@@ -1359,7 +1357,7 @@ const keysNote=(()=>{
   }
   document.fonts?.ready.then(()=>{if(open)fit()});
   function show(){
-    if(open)return;open=true;btn.setAttribute("aria-expanded","true");
+    if(open)return;open=true;lifted=true;btn.setAttribute("aria-expanded","true");   // the pad leaves the desk: the plain baked desk shows underneath
     anim?.cancel();el.hidden=false;fit();
     anim=el.animate([{transform:away(),opacity:0},{transform:REST,opacity:1}],{duration:ms,easing:"cubic-bezier(.2,.85,.25,1)"});
   }
@@ -1367,10 +1365,17 @@ const keysNote=(()=>{
     if(!open)return;open=false;btn.setAttribute("aria-expanded","false");
     anim?.cancel();
     const a=anim=el.animate([{transform:REST,opacity:1},{transform:away(),opacity:0}],{duration:ms,easing:"cubic-bezier(.5,0,.8,.3)"});
-    a.onfinish=()=>{if(!open)el.hidden=true};
-    setTimeout(()=>{if(!open)el.hidden=true},ms+120);   // do not depend on the animation finishing (a slow frame must not leave the note up)
+    const land=()=>{if(!open){el.hidden=true;lifted=false}};
+    a.onfinish=land;
+    setTimeout(land,ms+120);   // do not depend on the animation finishing (a slow frame must not leave the note up)
   }
   const toggle=()=>open?hide():show();
+  el.querySelectorAll("[data-act]").forEach(b=>b.addEventListener("click",()=>{
+    const a=b.dataset.act;
+    if(a==="lamp-desk")toggleLamp("desk");else if(a==="lamp-floor")toggleLamp("floor");else if(a==="sip")sipMug();else if(a==="spin")spinPencils();else if(a==="calc"){hide();openCalc()}
+    else if(a==="esc")hide();else if(a==="guide")hide();
+  }));
+  el.querySelectorAll("[data-vk]").forEach(b=>b.addEventListener("click",()=>vcrDo(b.dataset.vk)));
   btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
   // A click anywhere outside the open note puts it back down (and does nothing else).
   let swallow=0;
@@ -1380,7 +1385,7 @@ const keysNote=(()=>{
     hide();if(ev.target===canvas)swallow=performance.now();
   },true);
   return {swallowed(){const s=swallow&&performance.now()-swallow<1500;swallow=0;return s},holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
-    sync(){holder.visible=!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
+    sync(){holder.visible=!lifted&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
 })();
 function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
 function syncMenu(){
@@ -1435,6 +1440,9 @@ addEventListener("keydown",e=>{
   else if(k==="p")go("power");
   else if(k==="h")go("phone");
   else if(k==="k")go("clocks");
+  else if((k==="l"||k==="f"||k==="s"||k==="u"||k==="i")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){
+    if(k==="s")sipMug();else if(k==="u")openCalc();else if(k==="i")spinPencils();else toggleLamp(k==="l"?"desk":"floor");
+  }
   else if(k==="?"){if(!document.documentElement.classList.contains("crt-gating"))keysNote.toggle()}
   else if(k==="escape"){if(keysNote.open)keysNote.hide();else if(creditsOpen())closeCredits();else go("home")}
 });
