@@ -132,7 +132,7 @@ html:not([data-view="ibm"]):not([data-view="fly"]):not([data-view="desk"]):not([
 html[data-view="notepad"] .bar .ctrl{display:none}
 @media (max-width:720px){.bar .ctrl{display:none}}
 
-.note{--s:min(400px,calc(100vw - 24px),calc(100vh - 150px));position:fixed;right:20px;top:calc(96px + env(safe-area-inset-top,0px));z-index:10;width:var(--s);height:var(--s);box-sizing:border-box;overflow:hidden;padding:calc(var(--s)/26) calc(var(--s)/24);font-size:calc(var(--s)/19);color:#2e2610;background:linear-gradient(135deg,#fbec7e,#f2d950);border-radius:1px;box-shadow:0 16px 34px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.55) inset;transform:rotate(-1.2deg);font-family:"Caveat","Courier Prime",cursive}
+.note{--s:min(480px,calc(100vw - 24px),calc(100vh - 130px));position:fixed;right:20px;top:calc(96px + env(safe-area-inset-top,0px));z-index:10;width:var(--s);height:var(--s);box-sizing:border-box;overflow:hidden;padding:calc(var(--s)/26) calc(var(--s)/24);font-size:calc(var(--s)/19);color:#2e2610;background:linear-gradient(135deg,#fbec7e,#f2d950);border-radius:1px;box-shadow:0 16px 34px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.55) inset;transform:rotate(-1.2deg);font-family:"Caveat","Courier Prime",cursive}
 .note[hidden]{display:none}
 .note h2{display:flex;justify-content:space-between;align-items:center;gap:.4em;margin:0 0 .3em;font:700 1.35em/1 "Caveat",cursive;color:#2e2610}
 .note .esc{flex:none;padding:.05em .5em 0;font-family:var(--osd);font-size:.8em;letter-spacing:.05em;color:#2e2610;background:rgba(255,255,255,.3);border:1px solid rgba(46,38,16,.45);border-radius:2px;cursor:pointer;white-space:nowrap}

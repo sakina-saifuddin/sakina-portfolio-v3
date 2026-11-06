@@ -254,7 +254,7 @@ function stepLamps(now){
   if(lampShadow.mat)lampShadow.mat.opacity=lampShadow.base*0.5*(lamps.desk.v+lamps.floor.v);
 }
 
-const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.glb":"sakina-room-agx-both.glb",g=>{
+const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-pad-m.glb":"sakina-room-agx-both-pad.glb",g=>{
   const maxAniso=renderer.capabilities.getMaxAnisotropy();
   g.scene.traverse(o=>{
     if(!o.isMesh)return;
@@ -956,53 +956,79 @@ const callBubble=(()=>{
       icon.material.rotation=w*(0.34*Math.sin(now*0.118)+0.08*Math.sin(now*0.047));
     }};
 })();
-// Sticky note with every key. A pad of sticky notes sits on the desk; "?" (or a click on it, or the "? Keys" button) lifts it to the top right of the
+// Sticky note with every key. The pad of sticky notes on the desk; "?" (or a click on it, or the "? Keys" button) lifts it to the top right of the
 // screen, and ESC puts it back on the desk. Keys pressed while it is open still work: the note stays open until ESC.
 const keysNote=(()=>{
   const el=$("keys-note"),btn=$("btn-keys");
-  // A pad of yellow sticky notes on the desk between the cup and the remote, set at a slant, with a curled corner and a short scribble on the top sheet.
-  const topC=document.createElement("canvas");topC.width=topC.height=256;const x=topC.getContext("2d");
-  const topT=new THREE.CanvasTexture(topC);topT.colorSpace=THREE.SRGBColorSpace;topT.anisotropy=8;
-  const drawTop=()=>{
-    let g=x.createLinearGradient(0,0,256,256);g.addColorStop(0,"#fbec7e");g.addColorStop(1,"#f1d74e");x.fillStyle=g;x.fillRect(0,0,256,256);
-    g=x.createRadialGradient(150,90,10,128,128,210);g.addColorStop(0,"rgba(255,255,255,.2)");g.addColorStop(1,"rgba(150,110,0,.16)");x.fillStyle=g;x.fillRect(0,0,256,256);
-    x.save();x.beginPath();x.moveTo(0,148);x.quadraticCurveTo(80,150,118,256);x.lineTo(0,256);x.closePath();   // shadow under the lifted corner
-    g=x.createLinearGradient(0,150,80,256);g.addColorStop(0,"rgba(120,85,0,0)");g.addColorStop(1,"rgba(120,85,0,.4)");x.fillStyle=g;x.fill();x.restore();
-    x.beginPath();x.moveTo(0,170);x.quadraticCurveTo(66,150,104,256);x.lineTo(0,256);x.closePath();   // the curled flap: its underside is a little darker
-    g=x.createLinearGradient(0,170,60,256);g.addColorStop(0,"#f4dc5c");g.addColorStop(1,"#d9b52a");x.fillStyle=g;x.fill();
-    x.lineWidth=3;x.strokeStyle="rgba(255,246,170,.85)";x.beginPath();x.moveTo(0,170);x.quadraticCurveTo(66,150,104,256);x.stroke();
-    x.fillStyle="#3a2d12";x.textAlign="center";x.textBaseline="middle";
-    let fs=60;x.font="700 "+fs+"px Caveat, cursive";
-    while(fs>26&&x.measureText("ALL KEYS").width>190){fs-=2;x.font="700 "+fs+"px Caveat, cursive"}
-    x.save();x.translate(150,66);x.rotate(-0.07);x.fillText("ALL KEYS",0,0);x.restore();
-    x.fillStyle="#b3402c";x.font="700 112px Caveat, cursive";x.save();x.translate(158,150);x.rotate(-0.06);x.fillText("?",0,0);x.restore();
-    topT.needsUpdate=true;
+  // The pad of sticky notes that was already on the desk (behind the cup, part of the baked Room_Desk mesh) is cut out of the desk and moved to the left,
+  // so it sits just above the notebook, slanted a little. Its own baked colours and shading stay, so it looks like the rest of the room. A line of
+  // handwriting (the guide) is laid over its top sheet and a soft shadow under it; clicking it opens the big note.
+  const holder=new THREE.Group();scene.add(holder);
+  const TARGET=new THREE.Vector3(-0.43,0.72,-2.03),SLANT=-0.2,CEN=new THREE.Vector3(-0.3107,0.72,-2.25),PW=0.1772,PD=0.1216,TOPY=0.7358;
+  let pad=null;
+  const inkCanvas=()=>{
+    const W=1180,H=810,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
+    g.fillStyle="#2b2a33";g.textBaseline="alphabetic";
+    const col1=[["T","Tapes"],["C","Use computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair"],["P","TV on / off"]];
+    const col2=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"]];
+    const col3=[["ESC","Put back / home"],["?","Open / close"]];
+    g.font="700 118px Caveat, cursive";g.save();g.translate(70,150);g.rotate(-0.025);g.fillText("GUIDE",0,0);
+    g.lineWidth=7;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,28);g.quadraticCurveTo(190,16,372,30);g.stroke();g.restore();
+    const row=(k,v,x,y)=>{g.font="700 54px Caveat, cursive";g.fillText(k,x,y);g.font="600 54px Caveat, cursive";g.fillText(v,x+(k.length>3?148:84),y)};
+    g.save();g.translate(0,0);g.rotate(0.012);
+    col1.forEach((r,i)=>row(r[0],r[1],70,262+i*53));
+    g.font="700 42px Caveat, cursive";g.fillText("AT THE TV",660,262);
+    col2.forEach((r,i)=>row(r[0],r[1],660,322+i*53));
+    g.font="700 42px Caveat, cursive";g.fillText("ANYWHERE",660,608);
+    col3.forEach((r,i)=>row(r[0],r[1],660,664+i*53));
+    g.restore();
+    const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
   };
-  drawTop();document.fonts?.load("700 60px Caveat").then(drawTop).catch(()=>{});
-  const sideC=document.createElement("canvas");sideC.width=sideC.height=64;{
-    const g=sideC.getContext("2d");g.fillStyle="#e9cd45";g.fillRect(0,0,64,64);
-    for(let i=0;i<64;i+=3){g.fillStyle="rgba(150,105,0,.38)";g.fillRect(0,i,64,1)}
+  const ink=inkCanvas();
+  function attach(src){
+    if(pad||!src)return;
+    const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!UV||!N)return;
+    src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+    const ia=I.array,keep=[],take=[],v=new THREE.Vector3();
+    for(let t=0;t<ia.length;t+=3){
+      let inb=true;
+      for(let k=0;k<3;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);if(v.x<-0.4008||v.x>-0.2205||v.y<0.7192||v.y>0.7358||v.z<-2.3112||v.z>-2.1888)inb=false}
+      (inb?take:keep).push(ia[t],ia[t+1],ia[t+2]);
+    }
+    if(take.length<30||take.length>900){console.warn("sticky pad: triangles not found",take.length/3);return}
+    const n=take.length,pos=new Float32Array(n*3),nor=new Float32Array(n*3),uvs=new Float32Array(n*2),w=new THREE.Vector3();
+    for(let i=0;i<n;i++){w.fromBufferAttribute(P,take[i]).applyMatrix4(M).sub(CEN);pos[i*3]=w.x;pos[i*3+1]=w.y;pos[i*3+2]=w.z;
+      w.fromBufferAttribute(N,take[i]).applyMatrix3(NM).normalize();nor[i*3]=w.x;nor[i*3+1]=w.y;nor[i*3+2]=w.z;
+      uvs[i*2]=UV.getX(take[i]);uvs[i*2+1]=UV.getY(take[i])}
+    const gp=new THREE.BufferGeometry();
+    gp.setAttribute("position",new THREE.BufferAttribute(pos,3));gp.setAttribute("normal",new THREE.BufferAttribute(nor,3));gp.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+    g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+    pad=new THREE.Mesh(gp,src.material);pad.frustumCulled=false;pad.name="KeysNote";pad.userData.keysNote=true;holder.add(pad);
+    const top=TOPY-CEN.y;
+    const sheet=new THREE.Mesh(new THREE.PlaneGeometry(PW-0.012,(PW-0.012)*810/1180),new THREE.MeshBasicMaterial({map:ink.t,transparent:true,opacity:.86,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+    sheet.rotation.x=-Math.PI/2;sheet.position.set(0.0005,top+0.0004,0.002);sheet.renderOrder=3;holder.add(sheet);
+    // soft contact shadow on the desk around the moved pad (the old shadow is painted out of the desk's lightmap)
+    const sc=document.createElement("canvas");sc.width=512;sc.height=384;const sx=sc.getContext("2d");
+    sx.shadowColor="rgba(20,10,0,.6)";sx.shadowBlur=34;sx.shadowOffsetX=1000;sx.fillStyle="#000";sx.fillRect(110-1000,86,292,212);
+    const sh=new THREE.Mesh(new THREE.PlaneGeometry(PW*1.45,PW*1.45*384/512),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+    sh.rotation.x=-Math.PI/2;sh.position.set(0.004,0.0003,-0.003);sh.renderOrder=2;holder.add(sh);
+    holder.position.copy(TARGET);holder.rotation.y=SLANT;
   }
-  const sideT=new THREE.CanvasTexture(sideC);sideT.colorSpace=THREE.SRGBColorSpace;
-  const TINT=0xd6c8aa;   // the pad is not baked, so it is dimmed a little to sit in the lamp-lit desk
-  const PAD=0.092,THICK=0.016;
-  const sideM=new THREE.MeshBasicMaterial({map:sideT,color:TINT});
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(PAD,THICK,PAD),[sideM,sideM,new THREE.MeshBasicMaterial({map:topT,color:TINT}),sideM,sideM,sideM]);
-  mesh.position.set(-0.07,0.7258+THICK/2,-1.945);mesh.rotation.y=-0.5;
-  mesh.name="KeysNote";mesh.userData.keysNote=true;mesh.renderOrder=3;scene.add(mesh);
-  {const sc=document.createElement("canvas");sc.width=sc.height=64;const g=sc.getContext("2d"),r=g.createRadialGradient(32,32,8,32,32,32);
-    r.addColorStop(0,"rgba(0,0,0,.55)");r.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=r;g.fillRect(0,0,64,64);
-    const sh=new THREE.Mesh(new THREE.PlaneGeometry(PAD*1.5,PAD*1.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
-    sh.rotation.x=-Math.PI/2;sh.position.y=-THICK/2+0.0005;sh.renderOrder=2;mesh.add(sh);}
   let open=false,anim=null;const proj=new THREE.Vector3();
-  const home=()=>{camera.updateMatrixWorld();proj.copy(mesh.position).project(camera);
+  const home=()=>{camera.updateMatrixWorld();proj.copy(holder.position);proj.y+=0.02;proj.project(camera);
     return {x:Math.max(0,Math.min(innerWidth,(proj.x+1)/2*innerWidth)),y:Math.max(0,Math.min(innerHeight,(1-proj.y)/2*innerHeight))}};
   const away=()=>{const r=el.getBoundingClientRect(),p=home();
     return `translate(${(p.x-(r.left+r.width/2)).toFixed(1)}px,${(p.y-(r.top+r.height/2)).toFixed(1)}px) scale(.1) rotate(-12deg)`};
   const REST="rotate(-1.2deg)",ms=reduced?0:520;
+  // Largest writing that still fits the square without a scroll bar, whichever font the browser ends up with.
+  function fit(){
+    el.style.fontSize="";let fs=parseFloat(getComputedStyle(el).fontSize)*1.14;el.style.fontSize=fs+"px";
+    for(let i=0;i<30&&(el.scrollHeight>el.clientHeight+1||el.scrollWidth>el.clientWidth+1);i++){fs*=0.97;el.style.fontSize=fs+"px"}
+  }
+  document.fonts?.ready.then(()=>{if(open)fit()});
   function show(){
     if(open)return;open=true;btn.setAttribute("aria-expanded","true");
-    anim?.cancel();el.hidden=false;
+    anim?.cancel();el.hidden=false;fit();
     anim=el.animate([{transform:away(),opacity:0},{transform:REST,opacity:1}],{duration:ms,easing:"cubic-bezier(.2,.85,.25,1)"});
   }
   function hide(){
@@ -1013,8 +1039,8 @@ const keysNote=(()=>{
   }
   const toggle=()=>open?hide():show();
   btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
-  return {mesh,get open(){return open},show,hide,toggle,
-    sync(){mesh.visible=!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
+  return {holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
+    sync(){holder.visible=!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
 })();
 function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
 function syncMenu(){
@@ -1168,7 +1194,7 @@ function pick(ev){
   targets.push(...lampHits);
   if(phone)targets.push(...phone.pickMeshes());
   if(callBubble.on)targets.push(callBubble.bubble);
-  if(keysNote.mesh.visible)targets.push(keysNote.mesh);
+  targets.push(...keysNote.pickMeshes());
   if(deck)targets.push(...deck.pickMeshes());
   const hit=ray.intersectObjects(targets,false)[0];
   if(!hit)return null;
@@ -1828,6 +1854,7 @@ function warm(){
 Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   hideSheet();
   try{setupMug()}catch(e){console.warn("mug failed",e)}
+  try{keysNote.attach(meshes.Room_Desk)}catch(e){console.warn("sticky pad failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}
   try{setupWind()}catch(e){console.warn("wind failed",e)}
   try{setupPlant()}catch(e){console.warn("plant failed",e)}
