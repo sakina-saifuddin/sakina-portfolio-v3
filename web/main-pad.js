@@ -10,6 +10,7 @@ import {Ambience} from "./audio.js";
 import {pad} from "./pad-content.js";
 import {makePadTexture,PAD,UNDER,PAD_ROWS,PAD_W,PAD_H} from "./pad-texture.js";
 import {createTapeDeck} from "./tape-deck.js?v=4";
+import {createRemote} from "./remote.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=8";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
@@ -77,7 +78,7 @@ function setProgress(){
 let cityLife=null,gateEl,phone=null,phoneQuiet=false;const _gq=new THREE.Vector3();
 const TAPE_PAL=[0xc9a227,0x1f8f73,0xa8281f,0x2a4a9a,0xd9631c,0x2f7d3a,0x1f2f63,0x3a8a4a,0x7a3b8c,0xd0541d,0xa02a3c,0x1c6f8a,0x8a7a2a];
 let TAPES=[];
-let deck=null,notebook=null;const logoMeshes=[];
+let deck=null,notebook=null,remote=null;const logoMeshes=[];
 const tapeBoxU={min:{value:Array.from({length:16},()=>new THREE.Vector3(1e9,1e9,1e9))},max:{value:Array.from({length:16},()=>new THREE.Vector3(-1e9,-1e9,-1e9))},n:{value:0}};
 const tapesP=fetch("tapes.json").then(r=>r.json()).then(t=>{TAPES=t.map(d=>({idx:d.idx,object:d.object,box:new THREE.Box3(new THREE.Vector3(...d.min),new THREE.Vector3(...d.max))}));TAPES.slice(0,16).forEach((t,i)=>{tapeBoxU.min.value[i].copy(t.box.min);tapeBoxU.max.value[i].copy(t.box.max)});tapeBoxU.n.value=Math.min(16,TAPES.length)});
 // Reflections: a 360 degree capture of the baked room (rendered in Blender at desk height) filters into the environment map.
@@ -132,18 +133,41 @@ function pcWhite(m,name){
 }
 // The desk under each stack is baked dark where a tape sat. When the bottom tape of a stack is taken out, that patch is lifted
 // back to the colour of the desk around it, so the empty spot does not read as a black shadow.
-const DG={a:{value:new THREE.Vector4(9,9,9,9)},b:{value:new THREE.Vector4(9,9,9,9)},g:{value:new THREE.Vector2(0,0)}};
+const DG={a:{value:new THREE.Vector4(9,9,9,9)},b:{value:new THREE.Vector4(9,9,9,9)},h:{value:0},g:{value:new THREE.Vector2(0,0)}};
 function deskGone(m){
   const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{
     prev.call(m,sh,r);
-    Object.assign(sh.uniforms,{uDgA:DG.a,uDgB:DG.b,uDgG:DG.g});
-    sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec4 uDgA;uniform vec4 uDgB;uniform vec2 uDgG;")
+    Object.assign(sh.uniforms,{uDgA:DG.a,uDgB:DG.b,uDgH:DG.h,uDgG:DG.g});
+    sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec4 uDgA;uniform vec4 uDgB;uniform float uDgH;uniform vec2 uDgG;")
       .replace("#include <emissivemap_fragment>",`#include <emissivemap_fragment>
         float dgy=1.0-smoothstep(0.728,0.742,vWPw.y);
         float dga=smoothstep(uDgA.x-.012,uDgA.x+.004,vWPw.x)*(1.0-smoothstep(uDgA.y-.004,uDgA.y+.012,vWPw.x))*smoothstep(uDgA.z-.012,uDgA.z+.004,vWPw.z)*(1.0-smoothstep(uDgA.w-.004,uDgA.w+.012,vWPw.z));
         float dgb=smoothstep(uDgB.x-.012,uDgB.x+.004,vWPw.x)*(1.0-smoothstep(uDgB.y-.004,uDgB.y+.012,vWPw.x))*smoothstep(uDgB.z-.012,uDgB.z+.004,vWPw.z)*(1.0-smoothstep(uDgB.w-.004,uDgB.w+.012,vWPw.z));
-        totalEmissiveRadiance*=1.0+dgy*(dga*uDgG.x+dgb*uDgG.y)*DG_K;`.replace("DG_K",DG_K.toFixed(2)));
+        totalEmissiveRadiance*=1.0+dgy*(dga*uDgG.x+dgb*uDgG.y)*DG_K;
+        // The remote's footprint is baked into the desk as a dark patch. While the remote is away that patch is replaced by the desk texture
+        // taken from just in front of it (0.095 m toward the viewer, found through the screen-space derivatives of position and uv).
+        #ifdef USE_EMISSIVEMAP
+        {
+          vec2 rl=vec2(dot(vWPw.xz-vec2(0.1300,-1.8596),vec2(0.99871,0.05069)),dot(vWPw.xz-vec2(0.1300,-1.8596),vec2(0.05069,-0.99871)));
+          vec2 rq=abs(vec2(rl.x,rl.y+0.007))-vec2(0.1015-0.012,0.036-0.012);
+          float rsd=length(max(rq,0.0))+min(max(rq.x,rq.y),0.0)-0.012;
+          float rmw=uDgH*dgy*(1.0-smoothstep(0.0035,0.0125,rsd));
+          vec3 dPx=dFdx(vWPw),dPy=dFdy(vWPw);vec2 dUx=dFdx(vEmissiveMapUv),dUy=dFdy(vEmissiveMapUv);
+          float g11=dot(dPx,dPx),g12=dot(dPx,dPy),g22=dot(dPy,dPy);
+          float det=max(g11*g22-g12*g12,1e-14);
+          // Fill the footprint from the desk just outside it: at its front edge from the desk in front, at its back edge from the desk behind,
+          // blended in between, so the fill meets the surrounding desk on both sides.
+          float yF=-0.0595,yB=0.0455;
+          vec3 ay=vec3(0.05069,0.0,-0.99871);
+          vec3 dF=(yF-rl.y)*ay,dB=(yB-rl.y)*ay;
+          vec2 uF=dUx*((dot(dF,dPx)*g22-dot(dF,dPy)*g12)/det)+dUy*((g11*dot(dF,dPy)-g12*dot(dF,dPx))/det);
+          vec2 uB=dUx*((dot(dB,dPx)*g22-dot(dB,dPy)*g12)/det)+dUy*((g11*dot(dB,dPy)-g12*dot(dB,dPx))/det);
+          float ty=clamp((rl.y-yF)/(yB-yF),0.0,1.0);
+          vec3 e2=emissive*mix(texture2D(emissiveMap,vEmissiveMapUv+uF).rgb,texture2D(emissiveMap,vEmissiveMapUv+uB).rgb,ty);
+          totalEmissiveRadiance=mix(totalEmissiveRadiance,e2,rmw);
+        }
+        #endif`.replace("DG_K",DG_K.toFixed(2)));
   };
   m.customProgramCacheKey=()=>"pcw_Room_Desk_dg";
   m.needsUpdate=true;
@@ -1210,6 +1234,7 @@ canvas.addEventListener("pointermove",e=>{
 function go(name){
   if(fly.on)flyStop();
   if(calcOpen())dropCalc();
+  if(remote?.out&&!["home","tapes","desk","power","remote"].includes(name))remote.putBack();
   if(name!=="notepad")notebook?.stop();
   if(name!=="pad")dropPad();
   if(name!=="ibm"&&name!=="contact"&&name!=="pcpower")term.setActive(false);
@@ -1226,6 +1251,7 @@ function go(name){
     flyTo("notepad");closePanel();
     if(again&&notebook?.playing)notebook.skip();else notebook?.start(performance.now());
   }
+  else if(name==="remote"){if(remote&&!padOpen())remote.toggle()}
   else if(name==="pad")liftPad();
   else if(name==="power")toggleTv();
   else if(name==="phone"){
@@ -1452,12 +1478,13 @@ addEventListener("keydown",e=>{
   else if(vcrKey(e,k))e.preventDefault();
   else if(k==="p")go("power");
   else if(k==="h")go("phone");
+  else if(k==="v")go("remote");
   else if(k==="k")go("clocks");
   else if((k==="l"||k==="f"||k==="s"||k==="u"||k==="i")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){
     if(k==="s")sipMug();else if(k==="u")openCalc();else if(k==="i")spinPencils();else toggleLamp(k==="l"?"desk":"floor");
   }
   else if(k==="?"){if(!document.documentElement.classList.contains("crt-gating"))keysNote.toggle()}
-  else if(k==="escape"){if(keysNote.open)keysNote.hide();else if(creditsOpen())closeCredits();else go("home")}
+  else if(k==="escape"){if(keysNote.open)keysNote.hide();else if(remote?.out)remote.putBack();else if(creditsOpen())closeCredits();else go("home")}
 });
 
 class QuietAmbience extends Ambience{
@@ -1497,6 +1524,7 @@ function tipFor3d(h){
     case"pad":return "CLICK TO LIFT THE WORK NOTES";
     case"desk":return snap?.name==="desk"?"CLICK TO ZOOM BACK OUT":"CLICK TO ZOOM IN ON THE TV";
     case"vcr":return vcrTip(h.id);
+    case"remote":return h.part==="key"?remoteTip(h.id):(remote.out?"THE REMOTE · CLICK A KEY · ESC OR V PUTS IT BACK":"CLICK TO PICK UP THE REMOTE · KEY V");
     case"notepad":return snap?.name==="notepad"?(notebook?.playing?"CLICK TO FINISH THIS PAGE":"CLICK THE ARROW ON THE PAGE TO TURN IT"):"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT";
     case"edge":return "CLICK OR DRAG RIGHT TO LOOK AT THE CHAIR WALL";
     case"window":return "CLICK TO LOOK AT THE VIEW OUTSIDE THE WINDOW";
@@ -1561,9 +1589,11 @@ function pick(ev){
   if(callBubble.on)targets.push(callBubble.bubble);
   targets.push(...keysNote.pickMeshes());
   if(deck)targets.push(...deck.pickMeshes());
+  if(remote)targets.push(...remote.pickMeshes());
   const hit=ray.intersectObjects(targets,false)[0];
   if(!hit)return null;
   const n=hit.object.name;
+  if(hit.object.userData.remote)return {kind:"remote",part:hit.object.userData.remote,id:hit.object.userData.rkey};
   if(hit.object.userData.tape!==undefined)return {kind:"tapes",idx:hit.object.userData.tape};
   if(hit.object.userData.keysNote)return {kind:"keys"};
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
@@ -1615,6 +1645,7 @@ canvas.addEventListener("pointerup",ev=>{
   const hit=pick(ev);
   if(!hit){if(edgeZone(ev))go("chair");return}
   if(hit.kind==="vcr")vcrDo(hit.id);
+  else if(hit.kind==="remote"){if(hit.part==="key")remoteDo(hit.id);else if(!remote.out)remote.pickUp()}
   else if(hit.kind==="tapes")showTape(hit.idx);
   else if(hit.kind==="notepad"&&snap?.name==="notepad"&&hit.nav!=null)notebook.flip(hit.nav);
   else if(hit.kind==="keys")keysNote.toggle();
@@ -1716,7 +1747,7 @@ function frame(now){
   stepTween(now);
   if(fly.on)stepFly(now);
   if(controls.enabled)controls.update();
-  stepPad(now);deck?.step(now);cityLife?.step(now/1000);phone?.step(now);notebook?.step(now);stepDeskGone();stepPc(now);term.step(now,reduced);ibmLights.step(now);crtVideo.step(now);
+  stepPad(now);deck?.step(now);remote?.step(now);cityLife?.step(now/1000);phone?.step(now);notebook?.step(now);stepDeskGone();stepPc(now);term.step(now,reduced);ibmLights.step(now);crtVideo.step(now);
   if(gateEl===undefined||gateEl?.isConnected){
     gateEl=document.getElementById("crt-gate");
     if(gateEl){camera.updateMatrixWorld();
@@ -1878,13 +1909,14 @@ const crtVideo=(()=>{
   let want=0,k=0,burst=0,held=false,cur=-1,last=performance.now(),away=false,userPaused=false;
   const api={onEnd:null,get paused(){return v.paused},get userMuted(){return userMute},get playing(){return cur>=0&&want>0},get active(){return vidMat.uniforms.uK.value>0.01||vidMat.uniforms.uNs.value>0.01}};
   v.addEventListener("ended",()=>{const done=cur;want=0;burst=1;api.onEnd?.(done)});
-  let userMute=false;
+  let userMute=false,slowMo=false;
   const dk={t:0,base:1};
   const muted=()=>soundBtn.getAttribute("aria-pressed")!=="true"||onComputer()||userMute||phoneQuiet;
   Object.assign(api,{
     play(i,go=true){
       cur=i;started=false;armed=go;shown=0;loadAt=performance.now();
       k=1;burst=0;vidMat.uniforms.uVid.value=blackTex;vidMat.uniforms.uK.value=1;vidMat.uniforms.uNs.value=0;crtScreen.mesh.visible=false;
+      slowMo=false;v.defaultPlaybackRate=v.playbackRate=1;
       v.pause();v.src=VIDEOS[i];v.muted=muted();want=1;userPaused=false;
     },
     // Phones allow sound only on a media element a tap has already played, so the first tap plays and pauses it silently.
@@ -1899,6 +1931,10 @@ const crtVideo=(()=>{
     away(on){away=on;if(on){if(started)v.pause()}else if(cur>=0&&want&&started&&v.paused&&!held&&!userPaused)v.play().catch(()=>{})},
     restart(){if(cur<0||!started)return false;v.currentTime=0;if(v.paused)v.play().catch(()=>{});return true},
     toggleMute(){userMute=!userMute;return userMute},
+    seek(d){if(cur<0||!started||!isFinite(v.duration))return null;v.currentTime=Math.max(0,Math.min(v.duration-0.3,v.currentTime+d));if(v.paused&&!userPaused&&!held&&!away)v.play().catch(()=>{});return v.currentTime},
+    toggleSlow(){if(cur<0||!started)return null;slowMo=!slowMo;v.defaultPlaybackRate=v.playbackRate=slowMo?0.5:1;return slowMo},
+    resume(){if(cur<0||!want||!started)return false;userPaused=false;slowMo=false;v.defaultPlaybackRate=v.playbackRate=1;if(v.paused)v.play().catch(()=>{});return true},
+    get slow(){return slowMo},get time(){return cur>=0?v.currentTime:0},get rate(){return v.playbackRate},get started(){return started},get vpaused(){return v.paused},
     duck(ms){if(!dk.t)dk.base=v.volume;v.volume=Math.min(dk.base,0.12);clearTimeout(dk.t);dk.t=setTimeout(()=>{v.volume=dk.base;dk.t=0},ms)},
     cycleVolume(){v.volume=v.volume>0.8?0.6:v.volume>0.5?0.3:1;return v.volume},
     hold(on){held=on;if(on)v.pause();else if(cur>=0&&want&&started&&v.paused&&!away)v.play().catch(()=>{})},
@@ -1967,6 +2003,10 @@ for(const ev of ["touchend","click","keydown"])addEventListener(ev,()=>crtVideo.
   logoMeshes.forEach(([mesh,name])=>deck.adoptLogo(mesh,name));
   addIntroTape(matFor);
   try{phone=createPhone({source:src,scene,reduced,soundOn:()=>soundBtn.getAttribute("aria-pressed")==="true",onState:m=>{phoneQuiet=m==="speaker"}});if(phone)buildViews()}catch(e){console.warn("phone failed",e)}
+  if(!new URLSearchParams(location.search).has("noremote"))try{
+    // the remote keeps the room's own material, so on the desk it looks exactly as it did; the legend overlay gets the same lamp dimming
+    remote=createRemote({source:src,material:src.material,camera,reduced,onChange:remoteChanged,decorate:mt=>lampDim(mt,"Room_Tapes")});
+  }catch(e){console.warn("remote failed",e)}
   console.log("tape deck",deck.parts.map(q=>q.holder.children.length).join(","));
 }
 // Twelfth tape: the intro film. It sits on top of the right-hand stack and carries its own spine label.
@@ -2108,6 +2148,50 @@ function vcrDo(id){
   if(id==="mute"){nudge(crtVideo.toggleMute()?"VIDEO MUTED":"VIDEO SOUND ON");return}
   if(id==="vol"){nudge("VOLUME "+Math.round(crtVideo.cycleVolume()*100)+"%")}
 }
+// The remote on the right: every key does what the matching control on the recorder does (plus a few the recorder does not have).
+const REMOTE_TIPS={power:"TV POWER",eject:"EJECT THE TAPE",play:"PLAY / RESUME (BACK TO NORMAL SPEED)",pause:"PAUSE / RESUME",stop:"STOP THE VIDEO",rew:"REWIND TO THE START OF THE VIDEO",ff:"FAST FORWARD 10 SECONDS",rec:"REPLAY THE LAST 10 SECONDS",
+  timer:"SLOW MOTION ON / OFF",menu:"TV VOLUME",chnext:"CHANNEL UP: NEXT TAPE",chprev:"CHANNEL DOWN: PREVIOUS TAPE",tv:"ZOOM IN ON THE TV",plus10:"TAPES 10, 11 AND 12","0":"MUTE THE VIDEO SOUND"};
+function remoteTip(id){
+  if(/^[1-9]$/.test(id)){const i=+id-1;return i<TAPE_INFO.length?"PLAY TAPE "+id+": "+TAPE_INFO[i].title:"NO TAPE ON CHANNEL "+id}
+  if(id==="0")return crtVideo.userMuted?"TURN THE VIDEO SOUND BACK ON":"MUTE THE VIDEO SOUND";
+  if(id==="pause")return vcrTip("pause");
+  return REMOTE_TIPS[id]||"";
+}
+function remotePlay(){
+  if(!deck)return;
+  if(!tv.on)setTv(true);
+  if(crtVideo.playing){const was=crtVideo.paused||crtVideo.slow;crtVideo.resume();nudge(was?"PLAYING":"ALREADY PLAYING");return}
+  const i=deck.inVcr>=0?deck.inVcr:PLAY_ORDER[0];
+  if(deck.inVcr===i){crtVideo.play(i,true);osd.show(i);nudge("PLAYING")}else showTape(i,{fly:false});
+}
+function remoteDo(id){
+  if(!deck)return;
+  sfx.type("key");
+  const cur=deck.inVcr;
+  if(id==="power"){toggleTv();nudge(tv.on?"TV ON":"TV OFF");return}
+  if(id==="eject"){vcrDo("eject");return}
+  if(id==="play"){remotePlay();return}
+  if(id==="pause"){vcrDo("pause");return}
+  if(id==="stop"){if(crtVideo.playing){crtVideo.stop();nudge("STOPPED")}else nudge("NOTHING IS PLAYING");return}
+  if(id==="rew"){vcrDo("rewind");return}
+  if(id==="ff"||id==="rec"){const r=crtVideo.seek(id==="ff"?10:-10);nudge(r===null?"NOTHING IS PLAYING":id==="ff"?"FAST FORWARD 10 SECONDS":"REPLAY: BACK 10 SECONDS");return}
+  if(id==="timer"){const r=crtVideo.toggleSlow();nudge(r===null?"NOTHING IS PLAYING":r?"SLOW MOTION":"NORMAL SPEED");return}
+  if(id==="menu"){vcrDo("vol");return}
+  if(id==="chnext"||id==="chprev"){vcrDo(id==="chnext"?"next":"prev");return}
+  if(id==="tv"){go("desk");return}
+  if(id==="0"){vcrDo("mute");return}
+  if(id==="plus10"){const a=[9,10,11].filter(i=>i<TAPE_INFO.length),n=a[(a.indexOf(cur)+1)%a.length];if(!tv.on)setTv(true);showTape(n,{fly:false});return}
+  if(/^[1-9]$/.test(id)){const i=+id-1;if(i<TAPE_INFO.length){if(!tv.on)setTv(true);showTape(i,{fly:false})}else nudge("NO TAPE ON CHANNEL "+id)}
+}
+if(new URLSearchParams(location.search).has("dbg"))window.__dbg={camera,get remote(){return remote},get deck(){return deck},get video(){return crtVideo},tv,vcrDo,remoteDo,get snap(){return snap},
+  keyXY:id=>{const o=remote.holder.getObjectByName("RemoteKey_"+id);camera.updateMatrixWorld();const v=o.getWorldPosition(new THREE.Vector3()).project(camera);const r=canvas.getBoundingClientRect();return [r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height]},
+  bodyXY:()=>{const v=remote.holder.position.clone().project(camera);const r=canvas.getBoundingClientRect();return [r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height]}};
+const remoteBtn=(()=>{const b=document.createElement("button");b.type="button";b.id="remote-back";b.hidden=true;b.textContent="PUT THE REMOTE BACK · ESC";document.body.append(b);b.addEventListener("click",()=>remote?.putBack());return b})();
+function remoteChanged(s){
+  remoteBtn.hidden=!(s==="held");
+  document.documentElement.classList.toggle("remote-out",s==="up"||s==="held");
+  if(s==="up"||s==="down")sfx.type("enter");
+}
 document.querySelectorAll("[data-vcr]").forEach(b=>b.addEventListener("click",()=>vcrDo(b.dataset.vcr)));
 function vcrKey(e,k){
   if(term.active||padOpen()||creditsOpen()||document.getElementById("crt-gate")||/^(button|a|input)$/i.test(document.activeElement?.tagName||""))return false;
@@ -2121,6 +2205,7 @@ function setTv(on){
 }
 function toggleTv(){setTv(!tv.on)}
 function stepDeskGone(){
+  {const now=performance.now(),k=1-Math.exp(-Math.min(.5,(now-(stepDeskGone.t2||now))/1000)*7);stepDeskGone.t2=now;DG.h.value+=((remote&&remote.shadowGone?1:0)-DG.h.value)*k}
   if(!deck||TAPES.length<11)return;
   const set=(u,k)=>{const b=TAPES[k].box;u.set(b.min.x,b.max.x,b.min.z,b.max.z)};
   set(DG.a.value,5);set(DG.b.value,10);

@@ -160,3 +160,7 @@ html.calc-open .bar .ctrl{display:none}
 .bar .keys.calc{flex-wrap:wrap;max-width:min(980px,92vw)}
 .bar .keys.calc span{font-size:20px}
 @media (min-width:721px){#calc-close{display:none}}
+/* the VCR remote held up on the right: a button under it puts it back (same look as the Back button) */
+#remote-back{position:fixed;z-index:30;right:max(2.4vw,16px);bottom:max(132px,16vh);padding:5px 16px 4px;font-family:var(--osd);font-size:21px;letter-spacing:.06em;line-height:1.2;text-transform:uppercase;color:var(--f-ink);background:rgba(20,18,24,.55);border:1px solid rgba(255,255,255,.22);border-radius:3px;cursor:pointer}
+#remote-back:hover{color:#fff;border-color:rgba(255,255,255,.4)}
+#remote-back[hidden]{display:none}
