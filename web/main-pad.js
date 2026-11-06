@@ -409,6 +409,9 @@ const crtScreen=(()=>{
   start();
   addEventListener("keydown",poke);
   canvas.addEventListener("pointerdown",poke);
+  // The gate takes a second to fade out, and the "LOADING" screen used to show through it before the name screen took over.
+  // The name screen now starts the moment the visitor enters, so the loading screen is never seen.
+  addEventListener("crt-enter",()=>{lastAct=performance.now();setMode("name",lastAct);draw(performance.now())});
   return {u,draw,mesh};
 })();
 const crtLive=crtScreen.u;

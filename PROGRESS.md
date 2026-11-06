@@ -102,3 +102,8 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 
 - 2026-11-06 — **newversion: name screen shortened to 6 s** (was 10 s): `NAME_HOLD=6000` in `web/main-pad.js` (intro film starts 7 s after the click: 6 s after the gate has faded);
   the name->"INSERT TAPE" fallback is now 8 s. `main-pad.js?v=111`.
+
+- 2026-11-06 — **newversion: removed the CRT "LOADING" screen shown between "click to enter" and the name screen.** It was the `crtScreen` canvas in `loading` mode
+  (">> LOADING", "CH 00", bar at 100%) showing through the entry gate during its 1 s fade-out; the name screen only took over once the gate element was removed.
+  `crtScreen` now switches to `name` on the `crt-enter` event. `main-pad.js?v=112`. Checked: no console errors; the transition itself is NOT verified by eye
+  (software rendering too slow); needs a look on the laptop.
