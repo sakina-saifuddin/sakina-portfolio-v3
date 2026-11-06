@@ -694,11 +694,22 @@ function setupCalc(){
     gg.computeBoundingSphere();gg.computeBoundingBox();return gg;
   };
   g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
-  const mat=src.material;calc.mat=mat;               // the very same material as the baked desk, so the calculator keeps exactly its baked look
+  const mat=src.material;
+  // The calculator gets a copy of the desk material whose position-based tints (the healing and brightening patches around the desk) are
+  // computed from its REST position. So it keeps exactly the colour it has on the desk, wherever it is held.
+  const cm=mat.clone(),prevCm=mat.onBeforeCompile,restM=new THREE.Matrix4().compose(new THREE.Vector3(CALC.cx,CALC.y,CALC.cz),new THREE.Quaternion().setFromAxisAngle(_cy,-CALC.yaw),new THREE.Vector3(1,1,1));
+  cm.onBeforeCompile=(sh,r)=>{
+    if(prevCm)prevCm.call(mat,sh,r);
+    sh.uniforms.uRestM={value:restM};
+    sh.vertexShader="uniform mat4 uRestM;\n"+sh.vertexShader.replace(/modelMatrix\*vec4\(transformed,1\.0\)/g,"uRestM*vec4(transformed,1.0)");
+  };
+  cm.customProgramCacheKey=()=>"calc_restm";cm.needsUpdate=true;
+  if(mat.envMap)cm.envMap=mat.envMap;envReady.then(t=>{if(SPEC.Room_Desk){cm.envMap=t;cm.needsUpdate=true}});
+  calc.mat=cm;
   const grp=new THREE.Group();grp.position.set(CALC.cx,CALC.y,CALC.cz);grp.rotation.y=-CALC.yaw;grp.name="Calculator";
-  const bm=new THREE.Mesh(mkGeo(body),mat);bm.name="CalcBody";bm.castShadow=true;grp.add(bm);calc.body=bm;
+  const bm=new THREE.Mesh(mkGeo(body),cm);bm.name="CalcBody";bm.castShadow=true;grp.add(bm);calc.body=bm;
   keys.forEach((tri,i)=>{
-    if(!tri.length)return;const km=new THREE.Mesh(mkGeo(tri),mat);km.name="CalcKey";km.castShadow=true;
+    if(!tri.length)return;const km=new THREE.Mesh(mkGeo(tri),cm);km.name="CalcKey";km.castShadow=true;
     km.userData.label=CALC_ROWS[Math.floor(i/5)][i%5];km.userData.t0=-1e9;grp.add(km);calc.keys.push(km);calc.byLabel[km.userData.label]=km;
   });
   // the LCD digits, drawn on a canvas that lies just above the glass (the glass itself stays baked)
@@ -850,7 +861,7 @@ const _cRx=new THREE.Quaternion(),_cRy=new THREE.Quaternion(),_cX=new THREE.Vect
 function stepCalc(now){
   if(!calc.group)return;
   // key travel
-  for(const km of calc.keys){const a=(now-km.userData.t0)/170;km.position.y=a<1?-0.0013*Math.sin(Math.PI*Math.min(1,a*1.0)):0}
+  for(const km of calc.keys){const a=(now-km.userData.t0)/170;km.position.y=a<1?-0.0009*Math.sin(Math.PI*a):0}
   if(!calc.dir)return;
   const dur=reduced?1:1100,p=Math.min(1,(now-calc.t0)/dur),target=calc.dir>0?1:0,sp=calc.from+(target-calc.from)*p;
   calc.k=sp<.5?4*sp*sp*sp:1-Math.pow(-2*sp+2,3)/2;
@@ -864,7 +875,6 @@ function stepCalc(now){
   calc.group.position.lerpVectors(new THREE.Vector3(CALC.cx,CALC.y,CALC.cz),_ctp,calc.k);
   calc.group.position.y+=Math.sin(Math.PI*calc.k)*0.07;
   calc.group.quaternion.slerpQuaternions(_cq,_ctq,calc.k);
-  calc.lcd.material.color.setScalar(0.74+0.30*calc.k);
   if(p>=1){
     if(calc.dir<0){calc.group.position.set(CALC.cx,CALC.y,CALC.cz);calc.group.quaternion.copy(_cq);calcScrim.hidden=true;scene.add(calc.group);calcPass.enabled=false;calcClose.hidden=true;calc.k=0;calc.dir=0}
     else calc.t0=-Infinity;
@@ -1758,7 +1768,6 @@ const vidPass=new RenderPass(vidScene,camera);vidPass.clear=false;vidPass.clearD
 composer.insertPass(vidPass,composer.passes.indexOf(gradePass));
 const calcPass=new RenderPass(calcScene,camera);calcPass.clear=false;calcPass.clearDepth=true;calcPass.enabled=false;
 composer.insertPass(calcPass,composer.passes.indexOf(gradePass));
-{const r=calcPass.render.bind(calcPass);calcPass.render=(...a)=>{const m=calc.mat,b=m.emissiveIntensity;m.emissiveIntensity=b*(1+0.55*calc.k);r(...a);m.emissiveIntensity=b}}
 const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},uNs:{value:0},uTime:{value:0}},transparent:true,depthTest:false,depthWrite:false,
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`uniform sampler2D uVid;uniform float uK,uNs,uTime;varying vec2 vUv;

@@ -193,3 +193,7 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - It is drawn in its own render pass (after the CRT video overlay), otherwise the video plane (no depth test) painted over it.
 - Desk where it stood: a soft-edged patch with the same shader re-uses clean plank texels shifted 16 cm along the grain, so no black contact shadow is left.
 - Verified (local software render, 640x360 and 1280x720): rest look, lift to front, 12+3=15, 9x7=63, keyboard 7*6=42, Escape puts it back, desk clean, no console errors. NOT verified: real fps, click sound, touch use, exact look of the shadow-free desk on the real device.
+
+## 2026-11-06 — Calculator looks the same on the desk and in hand
+- The lifted calculator now uses a copy of the desk material whose position-based tints (desk healing/brightening patches) are fixed to its rest position, so colour no longer changes when it leaves the desk. Removed the lifted-state brightness boost and LCD tint lerp; key travel reduced to 0.9 mm to avoid flicker/cast when pressing.
+- Verified locally (software render): keys at rest ≈ (181,159,138), lifted ≈ (211,166,132), same hue; no console errors. Not yet verified on the published site.
