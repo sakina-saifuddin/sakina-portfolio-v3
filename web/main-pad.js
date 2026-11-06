@@ -847,6 +847,50 @@ const callBubble=(()=>{
       icon.material.rotation=w*(0.34*Math.sin(now*0.118)+0.08*Math.sin(now*0.047));
     }};
 })();
+// Sticky note with every key. A small yellow note sits on the CRT's bezel; "?" (or a click on it, or the "? Keys" button) lifts it to the top right of the
+// screen, and ESC puts it back on the TV. Keys pressed while it is open still work: the note stays open until ESC.
+const keysNote=(()=>{
+  const el=$("keys-note"),btn=$("btn-keys");
+  const cv=document.createElement("canvas");cv.width=cv.height=256;const x=cv.getContext("2d");
+  const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;
+  const draw=()=>{
+    x.clearRect(0,0,256,256);
+    const g=x.createLinearGradient(0,0,0,256);g.addColorStop(0,"#f8e78c");g.addColorStop(1,"#e9cf5a");
+    x.fillStyle=g;x.fillRect(6,6,244,244);
+    x.fillStyle="#2e2610";x.textAlign="center";x.textBaseline="middle";
+    let fs=70;x.font="700 "+fs+"px Caveat, cursive";
+    while(fs>30&&x.measureText("ALL KEYS").width>210){fs-=2;x.font="700 "+fs+"px Caveat, cursive"}   // fits the note whichever font is loaded
+    x.fillText("ALL KEYS",128,78);
+    x.fillStyle="#b3402c";x.font="700 130px Caveat, cursive";x.fillText("?",128,174);
+    tex.needsUpdate=true;
+  };
+  draw();document.fonts?.load("700 70px Caveat").then(draw).catch(()=>{});
+  const S=0.058;
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(S,S),new THREE.MeshBasicMaterial({map:tex,color:0xd8d0c8,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  mesh.position.set(CRT.cx-CRT.w/2-0.03,CRT.cy-CRT.h/2+0.0,CRT.z+0.0175);mesh.rotation.z=0.09;   // stuck on the lower left of the bezel (its front face is about 1 cm in front of the screen plane)
+  mesh.name="KeysNote";mesh.userData.keysNote=true;mesh.renderOrder=3;scene.add(mesh);
+  let open=false,anim=null;const proj=new THREE.Vector3();
+  const home=()=>{camera.updateMatrixWorld();proj.copy(mesh.position).project(camera);
+    return {x:Math.max(0,Math.min(innerWidth,(proj.x+1)/2*innerWidth)),y:Math.max(0,Math.min(innerHeight,(1-proj.y)/2*innerHeight))}};
+  const away=()=>{const r=el.getBoundingClientRect(),p=home();
+    return `translate(${(p.x-(r.left+r.width/2)).toFixed(1)}px,${(p.y-(r.top+r.height/2)).toFixed(1)}px) scale(.1) rotate(-12deg)`};
+  const REST="rotate(-1.2deg)",ms=reduced?0:520;
+  function show(){
+    if(open)return;open=true;btn.setAttribute("aria-expanded","true");
+    anim?.cancel();el.hidden=false;
+    anim=el.animate([{transform:away(),opacity:0},{transform:REST,opacity:1}],{duration:ms,easing:"cubic-bezier(.2,.85,.25,1)"});
+  }
+  function hide(){
+    if(!open)return;open=false;btn.setAttribute("aria-expanded","false");
+    anim?.cancel();
+    const a=anim=el.animate([{transform:REST,opacity:1},{transform:away(),opacity:0}],{duration:ms,easing:"cubic-bezier(.5,0,.8,.3)"});
+    a.onfinish=()=>{if(!open)el.hidden=true};
+  }
+  const toggle=()=>open?hide():show();
+  btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
+  return {mesh,get open(){return open},show,hide,toggle,
+    sync(){mesh.visible=!open&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
+})();
 function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
 function syncMenu(){
   const cur=padOpen()?"pad":term.active?menuIbm:"";
@@ -900,7 +944,8 @@ addEventListener("keydown",e=>{
   else if(k==="p")go("power");
   else if(k==="h")go("phone");
   else if(k==="k")go("clocks");
-  else if(k==="escape"){if(creditsOpen())closeCredits();else go("home")}
+  else if(k==="?"){if(!document.documentElement.classList.contains("crt-gating"))keysNote.toggle()}
+  else if(k==="escape"){if(keysNote.open)keysNote.hide();else if(creditsOpen())closeCredits();else go("home")}
 });
 
 class QuietAmbience extends Ambience{
@@ -930,6 +975,7 @@ function moveHint(h,ev){
 // Every clickable thing says what a click does, in the hint that follows the cursor.
 function tipFor3d(h){
   switch(h.kind){
+    case"keys":return "CLICK TO TAKE THE STICKY NOTE WITH ALL THE KEYS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
     case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
     case"ibm":return "CLICK TO USE THE COMPUTER";
@@ -960,6 +1006,8 @@ function tipFor(el){
   switch(b.id){
     case"pad-close":return "CLICK TO PUT THE PAPER BACK DOWN · ESC";
     case"panel-close":return "CLICK TO CLOSE AND GO BACK TO THE DESK · ESC";
+    case"btn-keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE KEYS · KEY ?";
+    case"keys-esc":return "CLICK TO PUT THE NOTE BACK ON THE TV · ESC";
     case"btn-credits":return "CLICK TO SEE THE CREDITS";
     case"back":return "CLICK TO GO BACK TO THE DESK · ESC";
     case"btn-sound":return audio.rainOn?"CLICK TO TURN THE RAIN SOUND OFF":"CLICK TO TURN THE RAIN SOUND ON";
@@ -993,11 +1041,13 @@ function pick(ev){
   if(mug.hit)targets.push(mug.hit);
   if(phone)targets.push(...phone.pickMeshes());
   if(callBubble.on)targets.push(callBubble.bubble);
+  if(keysNote.mesh.visible)targets.push(keysNote.mesh);
   if(deck)targets.push(...deck.pickMeshes());
   const hit=ray.intersectObjects(targets,false)[0];
   if(!hit)return null;
   const n=hit.object.name;
   if(hit.object.userData.tape!==undefined)return {kind:"tapes",idx:hit.object.userData.tape};
+  if(hit.object.userData.keysNote)return {kind:"keys"};
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
   if(n==="MugHit")return {kind:"mug"};
   if(n==="Pad")return {kind:"pad"};
@@ -1045,6 +1095,7 @@ canvas.addEventListener("pointerup",ev=>{
   if(hit.kind==="vcr")vcrDo(hit.id);
   else if(hit.kind==="tapes")showTape(hit.idx);
   else if(hit.kind==="notepad"&&snap?.name==="notepad"&&hit.nav!=null)notebook.flip(hit.nav);
+  else if(hit.kind==="keys")keysNote.toggle();
   else if(hit.kind==="phone")phoneClick(hit.part);
   else if(hit.kind==="mug")sipMug();
   else go(hit.kind);
@@ -1147,7 +1198,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);syncMenu();syncCall(now);if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
