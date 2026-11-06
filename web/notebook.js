@@ -188,7 +188,7 @@ export function createNotebook({ source, scene, reduced, sfx, paperColor = "#e9e
     out.copy(ORIGIN).addScaledVector(U, cx / PX).addScaledVector(V, PH * (1 - cy / CH)).setY(0.7399 + lift);
 
   // 4. the player
-  let phase = "rest", t0 = 0, page = 0, script = null, drawn = 0, glide = null, lastScratch = 0, flipT0 = 0, fromPose = null;
+  let phase = "rest", touched = false, resumeT = null, t0 = 0, page = 0, script = null, drawn = 0, glide = null, lastScratch = 0, flipT0 = 0, fromPose = null;
   const cur = new THREE.Vector3(), tmp = new THREE.Vector3(), tip = tip0.clone(), q = new THREE.Quaternion();
   const poseNow = () => ({ p: holder.position.clone(), q: holder.quaternion.clone() });
   const setPose = (p, qq) => { holder.position.copy(p); holder.quaternion.copy(qq); };
@@ -270,12 +270,28 @@ export function createNotebook({ source, scene, reduced, sfx, paperColor = "#e9e
     settle(now);
   }
   function begin(now) {
-    written[0] = written[1] = false;
-    hingeBase.visible = false; hinge.rotation.y = 0; inkMesh.visible = true;
-    pencil.visible = true;
-    paintStatic(0);
-    nav = null;
-    phase = "lift"; startGlide(hoverAbove(), qWrite, 900, 0.02, now); t0 = now;
+    inkMesh.visible = true; pencil.visible = true;
+    if (!touched) {   // first visit: start on page 1
+      touched = true; resumeT = null;
+      written[0] = written[1] = false;
+      hingeBase.visible = false; hinge.rotation.y = 0;
+      paintStatic(0);
+      nav = null;
+      phase = "lift"; startGlide(hoverAbove(), qWrite, 900, 0.02, now); t0 = now;
+      return;
+    }
+    // Later visits: what was written stays on the page (until the site is reloaded). A finished page is shown as it is left;
+    // an unfinished one carries on from where the pencil stopped.
+    if (written[page]) { phase = "idle"; startGlide(restTip, qDown, 900, 0.04, now); return; }
+    const at = resumeT != null ? worldAt(tipAt(resumeT).xy, 0.045) : hoverAbove();
+    phase = "lift"; startGlide(at, qWrite, 900, 0.02, now); t0 = now;
+  }
+  function endFlip(now) {   // jump a page turn to its end state
+    if (flipDir > 0) {
+      hinge.rotation.y = -Math.PI;
+      if (written[1]) { paintStatic(1, true); settle(now); }
+      else { loadPage(1); resumeT = null; phase = "lift"; startGlide(hoverAbove(), qWrite, 800, 0.02, now); }
+    } else { hingeBase.visible = false; hinge.rotation.y = 0; paintStatic(0, true); settle(now); }
   }
   function flipTo(target, now = performance.now()) {
     if (phase !== "idle" || target === page || target < 0 || target > 1) return false;
@@ -287,10 +303,6 @@ export function createNotebook({ source, scene, reduced, sfx, paperColor = "#e9e
     sfx?.type("flip");
     return true;
   }
-  function reset() {
-    glide = null; hingeBase.visible = false; hinge.rotation.y = 0; paintStatic(0);
-  }
-
   const api = {
     mesh: pencil,
     pickMeshes: () => [pencil, inkMesh],
@@ -308,15 +320,16 @@ export function createNotebook({ source, scene, reduced, sfx, paperColor = "#e9e
     flip: flipTo,
     stop(now = performance.now()) {
       if (phase === "rest" || phase === "return") return;
-      nav = null;
-      if (phase === "flip" || page === 1) reset();
+      if (phase === "flip") endFlip(now);
+      if (phase === "write") resumeT = reduced ? script.total + 1 : Math.min(now - t0, script.total + 1);
+      glide = null;
       phase = "return"; startGlide(tip0, qRest, 1000, 0.05, now);
     },
     step(now) {
       if (phase === "rest") return;
-      if (phase === "return") { if (!stepGlide(now)) { phase = "rest"; reset(); } return; }
+      if (phase === "return") { if (!stepGlide(now)) phase = "rest"; return; }
       if (phase === "lift") {
-        if (!stepGlide(now)) { phase = "write"; t0 = now - script.ops[script.first].s; }
+        if (!stepGlide(now)) { phase = "write"; t0 = now - (resumeT != null ? resumeT : script.ops[script.first].s); resumeT = null; }
         return;
       }
       if (phase === "write") {
@@ -333,11 +346,7 @@ export function createNotebook({ source, scene, reduced, sfx, paperColor = "#e9e
         const k = clamp01((now - flipT0) / (reduced ? 1 : 1400)), s = smooth(k);
         hinge.rotation.y = -Math.PI * (flipDir > 0 ? s : 1 - s); hingeBase.position.y = 0.7399 + 0.0008 * Math.sin(Math.PI * k);
         if (k >= 1) {
-          if (flipDir > 0) {
-            hinge.rotation.y = -Math.PI;
-            if (written[1]) { paintStatic(1, true); settle(now); }
-            else { loadPage(1); phase = "lift"; startGlide(hoverAbove(), qWrite, 800, 0.02, now); }
-          } else { hingeBase.visible = false; hinge.rotation.y = 0; paintStatic(0, true); settle(now); }
+          endFlip(now);
         }
         return;
       }

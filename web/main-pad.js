@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
 import {createSfx} from "./sfx.js?v=5";
-import {createNotebook} from "./notebook.js?v=6";
+import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";

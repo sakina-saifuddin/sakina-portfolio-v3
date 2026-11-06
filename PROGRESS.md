@@ -85,3 +85,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   `main-pad.js?v=108`. Checked locally with reduced motion (frozen animation): walls, floor and room pixel-identical to before; only the steam wisp differs
   (animated). The cloud has no GPU (software rendering, about 0.3 fps both ways), so the real fps gain is NOT measured yet: needs the laptop browser on the
   `newversion` preview. Not merged to main.
+
+- 2026-11-06 — **newversion: notebook keeps its writing.** `web/notebook.js` no longer wipes the page when the camera leaves the notebook (the old `reset()`
+  repainted page 1 and restarted the script on every visit). A finished page stays as written (pencil just rests on it), page 2 stays open, and an
+  unfinished page carries on from where the pencil stopped; a page turn in progress is completed instantly when leaving. State lives in memory only, so a
+  reload starts fresh. `notebook.js?v=7`, `main-pad.js?v=109`. Tested locally (reduced motion): written TODO page identical before leaving and after returning.
+  Not tested: leaving mid-stroke (software rendering is too slow to catch a half-written page), page-2 round trip.
