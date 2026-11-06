@@ -95,7 +95,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
   function ringTone(now) {
     if (!soundOn?.() || reduced) return;
     const ph = (now / 1000) % 3.6;
-    // Soft ring: only the first few rings are audible, after that the handset keeps shaking and the lamp keeps blinking in silence.
+    // Soft ring, repeated until the phone is answered.
     if (ph > 0.9 || ring.last === Math.floor(now / 3600) || ring.n >= RING_MAX) return;
     ring.last = Math.floor(now / 3600); ring.n++;
     try {
@@ -112,7 +112,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
     } catch { /* audio unavailable */ }
   }
   const ring = { last: -1, n: 0 };
-  const RING_MAX = 3, RING_GAIN = 0.0065;   // was a square wave at 0.018
+  const RING_MAX = Infinity, RING_GAIN = 0.0065;   // soft sine ring until the phone is answered (was a square wave at 0.018)
 
   function answer() {
     if (st.mode !== "ringing" && st.mode !== "idle") return false;
@@ -161,7 +161,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
       ringTone(now);
     }
     keyGlow.material.opacity = st.mode === "down" && !reduced ? 0.25 + 0.2 * Math.sin(now * 0.005) : st.mode === "down" ? 0.35 : 0;
-    const blink = st.mode === "ringing" ? (Math.floor(now / 300) % 2 ? 1 : 0.15) : st.mode === "idle" ? 0 : 0.35;
+    const blink = st.mode === "ringing" ? (Math.floor(now / 300) % 2 ? 1 : 0.15) : 0;
     lamp.material.opacity = reduced && st.mode === "ringing" ? 1 : blink;
     const talking = st.mode === "speaker" && !audioEl.paused;
     level += ((talking ? 0.5 + 0.5 * Math.abs(Math.sin(now * 0.013) * Math.sin(now * 0.0047)) : 0) - level) * 0.25;

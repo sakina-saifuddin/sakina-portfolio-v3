@@ -13,7 +13,7 @@ import {createTapeDeck} from "./tape-deck.js?v=4";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=6";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
-import {createPhone} from "./phone.js?v=7";
+import {createPhone} from "./phone.js?v=8";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -744,11 +744,22 @@ document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",(
 $("home-link").addEventListener("click",()=>{if(!document.documentElement.classList.contains("crt-gating"))go("home")});
 let menuIbm="ibm";
 const menuLinks=[...document.querySelectorAll(".menu [data-view]")];let menuCur="";
-// "Incoming call" chip: shown while the phone is ringing (the ring itself is soft and stops after a few rings), click answers it.
-const callHint=$("call-hint");let callOn=false;
+// "INCOMING" speech bubble on top of the phone: shown only while the phone rings, follows the phone on screen, click answers it.
+const callHint=$("call-hint"),_cv=new THREE.Vector3();let callOn=false;
 callHint?.addEventListener("click",()=>go("phone"));
 function syncCall(){
-  const on=!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate");
+  let on=!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate");
+  if(on){
+    const f=phone.frame;_cv.set((f.min.x+f.max.x)/2,f.max.y+0.03,(f.min.z+f.max.z)/2).project(camera);
+    if(_cv.z>1)on=false;
+    else{
+      // keep the bubble fully on screen; when the phone is past the edge the bubble sits at the edge and points toward it
+      const W=innerWidth,H=innerHeight,hw=(callHint.offsetWidth||130)/2+10,px=(_cv.x+1)/2*W,py=(1-_cv.y)/2*H;
+      const cx=Math.min(W-hw,Math.max(hw,px)),cy=Math.min(H-110,Math.max(70,py));
+      callHint.style.left=cx.toFixed(1)+"px";callHint.style.top=cy.toFixed(1)+"px";
+      callHint.classList.toggle("edge-r",px>W-hw+4);callHint.classList.toggle("edge-l",px<hw-4);
+    }
+  }
   if(on!==callOn){callOn=on;callHint.hidden=!on}
 }
 function syncMenu(){

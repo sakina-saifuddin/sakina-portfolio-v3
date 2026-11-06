@@ -115,3 +115,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - 2026-11-06 — **newversion: "INCOMING CALL" chip.** A small pulsing pill (red dot, amber border glow; "CLICK TO ANSWER" on wider screens) at the top-left under the name,
   shown while the phone is ringing (`phone.mode==="ringing"` and the entry gate is gone); click = `go("phone")` (answers). Hides when answered. `index.html` (`#call-hint`),
   `style.css` (`.call-hint`, reduced-motion = no pulse), `main-pad.js` (`syncCall`), `main-pad.js?v=114`. Tested locally: chip appears after entering, click makes it hide, no console errors.
+
+- 2026-11-06 — **newversion: phone "INCOMING" speech bubble (replaces the top-left chip).** A rectangular bubble with a tail and a blinking red dot sits on top of the phone
+  (placed each frame from the 3D phone position, `syncCall` in `main-pad.js`; kept on screen and pointing toward the phone when it is past the edge, which it is in the
+  home view). While the phone rings: bubble + handset shake + blinking red lamp + soft ring, all until answered. As soon as it is answered (`mode!=="ringing"`) all four stop;
+  the lamp no longer stays half-lit during the call (`phone.js`). The 3-ring cap was removed: the soft ring repeats until answered. Click on the bubble answers.
+  `main-pad.js?v=116`, `phone.js?v=8`. Tested locally: bubble visible after entering, click hides it, no console errors; ring sound and shake not heard/seen in the cloud.
