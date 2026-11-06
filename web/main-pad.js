@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=8";
+import {createSfx} from "./sfx.js?v=9";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -189,6 +189,71 @@ function heal(m){
   m.needsUpdate=true;
 }
 
+// Lamps: click the desk lamp or the standing lamp to switch it off / on. The room light is baked, so a switched-off lamp is done in the
+// shader: every baked material multiplies its final colour by a factor that depends on how far the pixel is from each lamp and
+// whether that lamp is on (a little of the baked light is kept everywhere, so the room goes dark but stays readable). Both on = factor 1,
+// i.e. exactly the approved look. The shadow lights are only drawn for shadows, so they are not touched (no shader recompile).
+const lampU={uLamp:{value:new THREE.Vector2(1,1)}};
+const lamps={
+  desk:{on:true,v:1,name:"DESK LAMP",light:null},
+  floor:{on:true,v:1,name:"STANDING LAMP",light:null}
+};
+const lampShadow={mat:null,base:0};
+let lampDirty=false;
+const LAMP_DARK={Room_Window:0.42,Room_Monitor:0.28};
+function lampDim(m,name){
+  if(!m||m.userData.lampDim)return;m.userData.lampDim=true;
+  const prev=m.onBeforeCompile,prevKey=m.customProgramCacheKey;
+  const dark=(LAMP_DARK[name]??0.14).toFixed(3);
+  m.onBeforeCompile=(sh,r)=>{
+    if(prev)prev.call(m,sh,r);
+    sh.uniforms.uLamp=lampU.uLamp;
+    sh.vertexShader=sh.vertexShader.replace("#include <common>","#include <common>\nvarying vec3 vWPl;")
+      .replace("#include <begin_vertex>","#include <begin_vertex>\nvWPl=(modelMatrix*vec4(transformed,1.0)).xyz;");
+    sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nvarying vec3 vWPl;uniform vec2 uLamp;")
+      .replace("#include <opaque_fragment>",`{
+        vec3 la=vWPl-vec3(-0.4,1.0,-2.17),lb=vWPl-vec3(2.21,1.3,-0.96);
+        float wa=1.0/(0.4+dot(la,la)),wb=1.0/(0.4+dot(lb,lb));
+        float loc=(wa*uLamp.x+wb*uLamp.y)/(wa+wb);
+        float lit=mix(0.5*(uLamp.x+uLamp.y),loc,0.7);
+        outgoingLight*=mix(${dark},1.0,lit);
+      }
+      #include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey=()=>"lamp_"+name+"_"+(prevKey?prevKey.call(m):(prev?prev.toString():""));
+  m.needsUpdate=true;
+}
+const lampHits=[];
+function setupLamps(){
+  for(const [n,o] of Object.entries(meshes))lampDim(o.material,n);
+  const hm=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false});
+  const add=(id,geo,x,y,z)=>{const h=new THREE.Mesh(geo,hm);h.position.set(x,y,z);h.name="LampHit_"+id;h.userData.lamp=id;h.frustumCulled=false;scene.add(h);lampHits.push(h)};
+  add("desk",new THREE.BoxGeometry(0.40,0.40,0.50),-0.45,0.95,-2.29);                       // task lamp on the desk
+  add("floor",new THREE.CylinderGeometry(0.27,0.27,0.50,20),2.21,1.53,-0.96);              // standing lamp: shade
+  add("floor",new THREE.CylinderGeometry(0.08,0.08,1.30,10),2.21,0.65,-0.96);              // pole
+  add("floor",new THREE.CylinderGeometry(0.20,0.20,0.10,16),2.21,0.05,-0.96);              // foot
+}
+function toggleLamp(id){
+  const L=lamps[id];if(!L)return;
+  L.on=!L.on;sfx.lamp(L.on);
+  if(reduced)L.v=L.on?1:0;
+  lampDirty=true;
+  const h=$("hint");if(h.classList.contains("show"))h.textContent=tipFor3d({kind:"lamp",id});
+  nudge(L.name+(L.on?" ON":" OFF"));
+}
+function stepLamps(now){
+  const dt=Math.min(0.1,(now-(stepLamps.t||now))/1000);stepLamps.t=now;
+  let ch=!stepLamps.init||lampDirty;stepLamps.init=true;lampDirty=false;
+  for(const L of Object.values(lamps)){
+    const g=L.on?1:0;
+    if(L.v!==g){L.v+=(g-L.v)*Math.min(1,dt*6);if(Math.abs(g-L.v)<0.004)L.v=g;ch=true}
+  }
+  if(!ch)return;
+  const sm=v=>v*v*(3-2*v);
+  lampU.uLamp.value.set(sm(lamps.desk.v),sm(lamps.floor.v));
+  if(lampShadow.mat)lampShadow.mat.opacity=lampShadow.base*0.5*(lamps.desk.v+lamps.floor.v);
+}
+
 const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.glb":"sakina-room-agx-both.glb",g=>{
   const maxAniso=renderer.capabilities.getMaxAnisotropy();
   g.scene.traverse(o=>{
@@ -227,9 +292,10 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.gl
   for(const [n,m] of Object.entries(meshes)){m.castShadow=!["Room_Shell","Room_Floor","Room_Lamp"].includes(n)}
   const mkLight=(x,y,z,far)=>{const l=new THREE.PointLight(0xffffff,0.0001,far,1);l.position.set(x,y,z);l.castShadow=true;
     l.shadow.mapSize.set(1536,1536);l.shadow.radius=7;l.shadow.bias=-0.0006;l.shadow.normalBias=0.02;l.shadow.camera.near=0.05;scene.add(l);return l};
-  mkLight(-0.4,1.06,-2.17,9);          // desk lamp (Blender L1 -0.4, 2.17, 1.06)
-  mkLight(2.21,1.6,-0.96,9);           // floor lamp (Blender L3 2.21, 0.96, 1.6)
+  lamps.desk.light=mkLight(-0.4,1.06,-2.17,9);          // desk lamp (Blender L1 -0.4, 2.17, 1.06)
+  lamps.floor.light=mkLight(2.21,1.6,-0.96,9);           // floor lamp (Blender L3 2.21, 0.96, 1.6)
   const shadowMat=new THREE.ShadowMaterial({color:0x14080a,opacity:shOpacity,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+  lampShadow.mat=shadowMat;lampShadow.base=shOpacity;
   for(const n of ["Room_Shell","Room_Floor"]){
     const src=meshes[n];if(!src)continue;
     const r=new THREE.Mesh(src.geometry,shadowMat);r.position.copy(src.position);r.quaternion.copy(src.quaternion);r.scale.copy(src.scale);
@@ -525,6 +591,7 @@ function setupMug(){
   gd.setAttribute("position",new THREE.BufferAttribute(pos,3));gd.setAttribute("normal",new THREE.BufferAttribute(nor,3));gd.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
   g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
   const mat=src.material.clone();mat.onBeforeCompile=()=>{};if(src.material.envMap)mat.envMap=src.material.envMap;envReady.then(t=>{mat.envMap=t;mat.needsUpdate=true});
+  lampDim(mat,"MugCoffee");
   mug.base=mat.emissiveIntensity??1;
   const d=new THREE.Mesh(gd,mat);d.position.set(cx,MUG.top,cz);d.frustumCulled=false;d.name="MugCoffee";scene.add(d);mug.disc=d;
   const h=new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.052,0.11,16),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
@@ -993,6 +1060,7 @@ function tipFor3d(h){
   switch(h.kind){
     case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
+    case"lamp":return "CLICK TO TURN THE "+lamps[h.id].name+(lamps[h.id].on?" OFF":" ON");
     case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
     case"ibm":return "CLICK TO USE THE COMPUTER";
     case"pad":return "CLICK TO LIFT THE WORK NOTES";
@@ -1055,6 +1123,7 @@ function pick(ev){
   targets.push(padMesh,tvButton.hit,pcButton.hit,crtHit,windowHit,...VCR);
   if(notebook)targets.push(...notebook.pickMeshes());
   if(mug.hit)targets.push(mug.hit);
+  targets.push(...lampHits);
   if(phone)targets.push(...phone.pickMeshes());
   if(callBubble.on)targets.push(callBubble.bubble);
   if(keysNote.mesh.visible)targets.push(keysNote.mesh);
@@ -1066,6 +1135,7 @@ function pick(ev){
   if(hit.object.userData.keysNote)return {kind:"keys"};
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
   if(n==="MugHit")return {kind:"mug"};
+  if(hit.object.userData.lamp)return {kind:"lamp",id:hit.object.userData.lamp};
   if(n==="Pad")return {kind:"pad"};
   if(hit.object.userData.notebook)return {kind:"notepad",nav:notebook?.navAt(hit)};
   if(hit.object.userData.vcr)return {kind:"vcr",id:hit.object.userData.vcr};
@@ -1114,6 +1184,7 @@ canvas.addEventListener("pointerup",ev=>{
   else if(hit.kind==="keys")keysNote.toggle();
   else if(hit.kind==="phone")phoneClick(hit.part);
   else if(hit.kind==="mug")sipMug();
+  else if(hit.kind==="lamp")toggleLamp(hit.id);
   else go(hit.kind);
 });
 
@@ -1214,7 +1285,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepLamps(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
@@ -1443,6 +1514,7 @@ function setupTapes(){
           totalEmissiveRadiance=mix(totalEmissiveRadiance,plastic,darkW);`);
     };
     mt.customProgramCacheKey=()=>"tape-plastic";
+    lampDim(mt,"tape");
     mats.push(mt);envReady.then(t=>{mt.envMap=t;mt.needsUpdate=true});
     return mt;
   };
@@ -1711,6 +1783,7 @@ Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   try{notebook=createNotebook({source:meshes.Room_Desk,scene,reduced,sfx})}catch(e){console.warn("notebook failed",e)}
   try{createFrames({meshes,scene})}catch(e){console.warn("frames failed",e)}
   try{setupClock()}catch(e){console.warn("clock failed",e)}
+  try{setupLamps()}catch(e){console.warn("lamps failed",e)}
   buildViews();
   warm();
   const l=$("loader");l.classList.add("done");

@@ -116,6 +116,12 @@ export function createSfx({ enabled }) {
       hiss(t + 1.2, 0.5, 0.2, "lowpass", 1000, 350);
       return 1.8;
     },
+    // a lamp switch: a firm mechanical click, a little lower and softer for off than for on
+    lamp(on = true) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      click(t, on ? 0.7 : 0.55); tone(t, 0.04, "square", on ? 900 : 700, on ? 420 : 300, 0.12, 2400);
+      click(t + 0.05, 0.35); tone(t + 0.03, 0.12, "sine", on ? 240 : 170, 90, 0.14);
+    },
     // one tick per call, quieter the farther the camera is from the clock
     tick(dist = 1.5) {
       if (!ready() || !clockBuf) return;
