@@ -711,6 +711,10 @@ const calcScrim=document.createElement("div");calcScrim.id="calc-scrim";calcScri
 const calcClose=document.createElement("button");calcClose.type="button";calcClose.id="calc-close";calcClose.textContent="PUT DOWN · ESC";calcClose.hidden=true;
 document.body.append(calcScrim,calcClose);
 const calcOpen=()=>calc.dir===1;
+// The overlay pass runs after OutputPass, i.e. into an already sRGB-encoded picture, so while the calculator is in the overlay its colours must be
+// sRGB-encoded by hand. Otherwise it comes out far too dark and shows up darker than on the desk.
+const calcEnc={value:0};
+const calcEncode=sh=>{sh.uniforms.uEnc=calcEnc;sh.fragmentShader="uniform float uEnc;\n"+sh.fragmentShader.replace("#include <colorspace_fragment>","#include <colorspace_fragment>\n  if(uEnc>0.5){vec3 c_=clamp(gl_FragColor.rgb,0.0,1.0);gl_FragColor.rgb=mix(c_*12.92,pow(c_,vec3(1.0/2.4))*1.055-0.055,step(vec3(0.0031308),c_));}")};
 const calcScene=new THREE.Scene();
 const _cy=new THREE.Vector3(0,1,0),_cq=new THREE.Quaternion(),_cq2=new THREE.Quaternion(),_ce=new THREE.Euler();
 function setupCalc(){
@@ -728,7 +732,13 @@ function setupCalc(){
     nCalc++;
     if(Math.abs(lx)<0.036&&lz>-0.046&&lz<-0.025&&ly>0.01963)continue;            // the baked digits "31415.92": dropped, redrawn live
     const r=Math.round((lz+0.016)/0.0136),cc=Math.round(lx/0.0162);
-    if(r>=0&&r<=4&&cc>=-2&&cc<=2&&Math.abs(lx-cc*0.0162)<0.0081&&Math.abs(lz-(-0.016+r*0.0136))<0.0068&&ly>CALC.ZF+(0.061-lz)*CALC.TANS+0.0002){keys[r*5+cc+2].push(ia[t],ia[t+1],ia[t+2]);continue}
+    if(r>=0&&r<=4&&cc>=-2&&cc<=2&&Math.abs(lx-cc*0.0162)<0.0081&&Math.abs(lz-(-0.016+r*0.0136))<0.0068&&ly>CALC.ZF+(0.061-lz)*CALC.TANS+0.0002){
+      // every corner must lie inside the same key cell: long triangles of the body plate that merely have their centre there stay in the body
+      let ok=true;
+      for(let k=0;k<3&&ok;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);const ex=v.x-CALC.cx,ez=v.z-CALC.cz,vx=ex*c+ez*s,vz=-ex*s+ez*c;
+        if(Math.abs(vx-cc*0.0162)>0.0095||Math.abs(vz-(-0.016+r*0.0136))>0.0082)ok=false}
+      if(ok){keys[r*5+cc+2].push(ia[t],ia[t+1],ia[t+2]);continue}
+    }
     body.push(ia[t],ia[t+1],ia[t+2]);
   }
   if(nCalc<8000||body.length<300){console.warn("calc: not found",nCalc);return}
@@ -753,6 +763,7 @@ function setupCalc(){
     if(prevCm)prevCm.call(mat,sh,r);
     sh.uniforms.uRestM={value:restM};
     sh.vertexShader="uniform mat4 uRestM;\n"+sh.vertexShader.replace(/modelMatrix\*vec4\(transformed,1\.0\)/g,"uRestM*vec4(transformed,1.0)");
+    calcEncode(sh);
   };
   cm.customProgramCacheKey=()=>"calc_restm";cm.needsUpdate=true;
   if(mat.envMap)cm.envMap=mat.envMap;envReady.then(t=>{if(SPEC.Room_Desk){cm.envMap=t;cm.needsUpdate=true}});
@@ -767,7 +778,7 @@ function setupCalc(){
   const cv=document.createElement("canvas");cv.width=700;cv.height=145;calc.lcdCv=cv;
   const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;calc.lcdTex=tex;
   const lm=new THREE.Mesh(new THREE.PlaneGeometry(0.07,0.0145),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,color:0xd8d2c0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
-  lm.material.color.setScalar(0.74);lm.rotation.x=-Math.PI/2;lm.position.set(0,0.0200,-0.035);lm.renderOrder=2;lm.name="CalcLcd";grp.add(lm);calc.lcd=lm;
+  lm.material.onBeforeCompile=calcEncode;lm.material.customProgramCacheKey=()=>"calc_lcd";lm.material.color.setScalar(0.74);lm.rotation.x=-Math.PI/2;lm.position.set(0,0.0200,-0.035);lm.renderOrder=2;lm.name="CalcLcd";grp.add(lm);calc.lcd=lm;
   // Where the calculator stood the baked desk is dark (its contact shadow). A thin patch with the same material re-uses clean texels of the same
   // plank, shifted 17 cm along the grain, so grain lines run straight through the patch and the desk looks as if nothing stood there.
   {
@@ -898,7 +909,7 @@ function openCalc(){
   calcScrim.hidden=false;calcClose.hidden=false;
   requestAnimationFrame(()=>{calcClose.classList.add("on")});
   document.documentElement.classList.add("calc-open");
-  calcScene.add(calc.group);calcPass.enabled=true;
+  calcScene.add(calc.group);calcPass.enabled=true;calcEnc.value=1;
   Object.assign(calc,{dir:1,t0:performance.now(),from:calc.k});
   $("hint").classList.remove("show");
 }
@@ -927,7 +938,7 @@ function stepCalc(now){
   calc.group.position.y+=Math.sin(Math.PI*calc.k)*0.07;
   calc.group.quaternion.slerpQuaternions(_cq,_ctq,calc.k);
   if(p>=1){
-    if(calc.dir<0){calc.group.position.set(CALC.cx,CALC.y,CALC.cz);calc.group.quaternion.copy(_cq);calcScrim.hidden=true;scene.add(calc.group);calcPass.enabled=false;calcClose.hidden=true;calc.k=0;calc.dir=0}
+    if(calc.dir<0){calc.group.position.set(CALC.cx,CALC.y,CALC.cz);calc.group.quaternion.copy(_cq);calcScrim.hidden=true;scene.add(calc.group);calcPass.enabled=false;calcEnc.value=0;calcClose.hidden=true;calc.k=0;calc.dir=0}
     else calc.t0=-Infinity;
   }
 }
