@@ -194,6 +194,9 @@ function heal(m){
 // whether that lamp is on (a little of the baked light is kept everywhere, so the room goes dark but stays readable). Both on = factor 1,
 // i.e. exactly the approved look. The shadow lights are only drawn for shadows, so they are not touched (no shader recompile).
 const lampU={uLamp:{value:new THREE.Vector2(1,1)}};
+// The standing lamp is moved a little to the left, toward the room centre and away from the right wall (user request): metres in room coordinates.
+// Only its geometry moves (shiftStandingLamp); its baked glow on the wall stays where the bake put it.
+const LS={x:-0.25,z:0},LAMP_AXIS={x:2.21,z:-0.96};
 const lamps={
   desk:{on:true,v:1,name:"DESK LAMP",light:null},
   floor:{on:true,v:1,name:"STANDING LAMP",light:null}
@@ -212,7 +215,7 @@ function lampDim(m,name){
       .replace("#include <begin_vertex>","#include <begin_vertex>\nvWPl=(modelMatrix*vec4(transformed,1.0)).xyz;");
     sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nvarying vec3 vWPl;uniform vec2 uLamp;")
       .replace("#include <opaque_fragment>",`{
-        vec3 la=vWPl-vec3(-0.4,1.0,-2.17),lb=vWPl-vec3(2.21,1.3,-0.96);
+        vec3 la=vWPl-vec3(-0.4,1.0,-2.17),lb=vWPl-vec3(${(LAMP_AXIS.x+LS.x).toFixed(3)},1.3,${(LAMP_AXIS.z+LS.z).toFixed(3)});
         float wa=1.0/(0.4+dot(la,la)),wb=1.0/(0.4+dot(lb,lb));
         float loc=(wa*uLamp.x+wb*uLamp.y)/(wa+wb);
         float lit=mix(0.5*(uLamp.x+uLamp.y),loc,0.7);
@@ -224,14 +227,40 @@ function lampDim(m,name){
   m.needsUpdate=true;
 }
 const lampHits=[];
+function shiftStandingLamp(){
+  const m=meshes.Room_Right_Nook;if(!m||!m.geometry.index)return;
+  m.updateWorldMatrix(true,false);
+  const g=m.geometry,pos=g.attributes.position,idx=g.index.array,n=pos.count;
+  const par=new Int32Array(n);for(let i=0;i<n;i++)par[i]=i;
+  const find=a=>{while(par[a]!==a){par[a]=par[par[a]];a=par[a]}return a};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[b]=a};
+  for(let i=0;i<idx.length;i+=3){uni(idx[i],idx[i+1]);uni(idx[i],idx[i+2])}
+  // a connected piece belongs to the lamp when all of it lies within 0.28 m of the lamp axis and below 1.85 m
+  const bad=new Set(),v=new THREE.Vector3(),w=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);w[i*3]=v.x;w[i*3+1]=v.y;w[i*3+2]=v.z;
+    if(Math.hypot(v.x-LAMP_AXIS.x,v.z-LAMP_AXIS.z)>0.28||v.y>1.85)bad.add(find(i));
+  }
+  const p0=new THREE.Vector3(LAMP_AXIS.x,0,LAMP_AXIS.z),p1=new THREE.Vector3(LAMP_AXIS.x+LS.x,0,LAMP_AXIS.z+LS.z);
+  const d=m.worldToLocal(p1.clone()).sub(m.worldToLocal(p0.clone()));
+  let moved=0;
+  for(let i=0;i<n;i++){
+    if(bad.has(find(i)))continue;
+    if(Math.hypot(w[i*3]-LAMP_AXIS.x,w[i*3+2]-LAMP_AXIS.z)>0.28)continue;
+    pos.setXYZ(i,pos.getX(i)+d.x,pos.getY(i)+d.y,pos.getZ(i)+d.z);moved++;
+  }
+  pos.needsUpdate=true;g.computeBoundingSphere();g.computeBoundingBox();
+  console.log("standing lamp moved:",moved,"vertices by",LS.x,LS.z);
+}
 function setupLamps(){
+  try{shiftStandingLamp()}catch(e){console.warn("lamp shift failed",e)}
   for(const [n,o] of Object.entries(meshes))lampDim(o.material,n);
   const hm=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false});
   const add=(id,geo,x,y,z)=>{const h=new THREE.Mesh(geo,hm);h.position.set(x,y,z);h.name="LampHit_"+id;h.userData.lamp=id;h.frustumCulled=false;scene.add(h);lampHits.push(h)};
   add("desk",new THREE.BoxGeometry(0.40,0.40,0.50),-0.45,0.95,-2.29);                       // task lamp on the desk
-  add("floor",new THREE.CylinderGeometry(0.27,0.27,0.50,20),2.21,1.53,-0.96);              // standing lamp: shade
-  add("floor",new THREE.CylinderGeometry(0.08,0.08,1.30,10),2.21,0.65,-0.96);              // pole
-  add("floor",new THREE.CylinderGeometry(0.20,0.20,0.10,16),2.21,0.05,-0.96);              // foot
+  add("floor",new THREE.CylinderGeometry(0.27,0.27,0.50,20),LAMP_AXIS.x+LS.x,1.53,LAMP_AXIS.z+LS.z);              // standing lamp: shade
+  add("floor",new THREE.CylinderGeometry(0.08,0.08,1.30,10),LAMP_AXIS.x+LS.x,0.65,LAMP_AXIS.z+LS.z);              // pole
+  add("floor",new THREE.CylinderGeometry(0.20,0.20,0.10,16),LAMP_AXIS.x+LS.x,0.05,LAMP_AXIS.z+LS.z);              // foot
 }
 function toggleLamp(id){
   const L=lamps[id];if(!L)return;
@@ -293,7 +322,7 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-pad-
   const mkLight=(x,y,z,far)=>{const l=new THREE.PointLight(0xffffff,0.0001,far,1);l.position.set(x,y,z);l.castShadow=true;
     l.shadow.mapSize.set(1536,1536);l.shadow.radius=7;l.shadow.bias=-0.0006;l.shadow.normalBias=0.02;l.shadow.camera.near=0.05;scene.add(l);return l};
   lamps.desk.light=mkLight(-0.4,1.06,-2.17,9);          // desk lamp (Blender L1 -0.4, 2.17, 1.06)
-  lamps.floor.light=mkLight(2.21,1.6,-0.96,9);           // floor lamp (Blender L3 2.21, 0.96, 1.6)
+  lamps.floor.light=mkLight(LAMP_AXIS.x+LS.x,1.6,LAMP_AXIS.z+LS.z,9);           // floor lamp (Blender L3 2.21, 0.96, 1.6)
   const shadowMat=new THREE.ShadowMaterial({color:0x14080a,opacity:shOpacity,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   lampShadow.mat=shadowMat;lampShadow.base=shOpacity;
   for(const n of ["Room_Shell","Room_Floor"]){
