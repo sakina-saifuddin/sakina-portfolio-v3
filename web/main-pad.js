@@ -1000,16 +1000,19 @@ const keysNote=(()=>{
     g.fillStyle="#2b2a33";g.textBaseline="alphabetic";
     const col1=[["T","Tapes"],["C","Use computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair"],["P","TV on / off"]];
     const col2=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"]];
-    const col3=[["ESC","Put back / home"],["?","Open / close"]];
+    const col3=[["ESC","Put back"],["?","This note"]];
+    const col4=[["Lamps","on / off"],["Mug","take a sip"],["Tape","play it"],["TV knob","on / off"],["Phone","answer"],["Book","turn page"],["Window","look out"],["Pad","this note"]];
     g.font="700 118px Caveat, cursive";g.save();g.translate(70,150);g.rotate(-0.025);g.fillText("GUIDE",0,0);
     g.lineWidth=7;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,28);g.quadraticCurveTo(190,16,372,30);g.stroke();g.restore();
-    const row=(k,v,x,y)=>{g.font="700 54px Caveat, cursive";g.fillText(k,x,y);g.font="600 54px Caveat, cursive";g.fillText(v,x+(k.length>3?148:84),y)};
-    g.save();g.translate(0,0);g.rotate(0.012);
+    const row=(k,v,x,y)=>{g.font="700 50px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 50px Caveat, cursive";g.fillText(v,x+Math.max(w+14,78),y)};
+    g.save();g.rotate(0.012);
     col1.forEach((r,i)=>row(r[0],r[1],70,262+i*53));
-    g.font="700 42px Caveat, cursive";g.fillText("AT THE TV",660,262);
-    col2.forEach((r,i)=>row(r[0],r[1],660,322+i*53));
-    g.font="700 42px Caveat, cursive";g.fillText("ANYWHERE",660,608);
-    col3.forEach((r,i)=>row(r[0],r[1],660,664+i*53));
+    g.font="700 40px Caveat, cursive";g.fillText("AT THE TV",470,262);
+    col2.forEach((r,i)=>row(r[0],r[1],470,320+i*50));
+    g.font="700 40px Caveat, cursive";g.fillText("ANYWHERE",470,600);
+    col3.forEach((r,i)=>row(r[0],r[1],470,654+i*50));
+    g.font="700 40px Caveat, cursive";g.fillText("CLICK ON",830,262);
+    col4.forEach((r,i)=>row(r[0],r[1],830,320+i*50));
     g.restore();
     const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
   };
@@ -1032,7 +1035,9 @@ const keysNote=(()=>{
     const gp=new THREE.BufferGeometry();
     gp.setAttribute("position",new THREE.BufferAttribute(pos,3));gp.setAttribute("normal",new THREE.BufferAttribute(nor,3));gp.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
     g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
-    pad=new THREE.Mesh(gp,src.material);pad.frustumCulled=false;pad.name="KeysNote";pad.userData.keysNote=true;holder.add(pad);
+    const pm=src.material.clone();pm.onBeforeCompile=src.material.onBeforeCompile;pm.customProgramCacheKey=src.material.customProgramCacheKey;
+    pm.emissive=pm.emissive.clone().setRGB(1.05,1.0,0.32);   // the baked pad is cream; tinted so it is the same yellow as the opened note
+    pad=new THREE.Mesh(gp,pm);pad.frustumCulled=false;pad.name="KeysNote";pad.userData.keysNote=true;holder.add(pad);
     const top=TOPY-CEN.y;
     const sheet=new THREE.Mesh(new THREE.PlaneGeometry(PW-0.012,(PW-0.012)*810/1180),new THREE.MeshBasicMaterial({map:ink.t,transparent:true,opacity:.86,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
     sheet.rotation.x=-Math.PI/2;sheet.position.set(0.0005,top+0.0004,0.002);sheet.renderOrder=3;holder.add(sheet);
@@ -1065,10 +1070,18 @@ const keysNote=(()=>{
     anim?.cancel();
     const a=anim=el.animate([{transform:REST,opacity:1},{transform:away(),opacity:0}],{duration:ms,easing:"cubic-bezier(.5,0,.8,.3)"});
     a.onfinish=()=>{if(!open)el.hidden=true};
+    setTimeout(()=>{if(!open)el.hidden=true},ms+120);   // do not depend on the animation finishing (a slow frame must not leave the note up)
   }
   const toggle=()=>open?hide():show();
   btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
-  return {holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
+  // A click anywhere outside the open note puts it back down (and does nothing else).
+  let swallow=0;
+  document.addEventListener("pointerdown",ev=>{
+    if(!open||el.contains(ev.target)||btn.contains(ev.target))return;
+    if(ev.target===canvas&&pick(ev)?.kind==="keys")return;   // the pad toggles itself
+    hide();if(ev.target===canvas)swallow=performance.now();
+  },true);
+  return {swallowed(){const s=swallow&&performance.now()-swallow<1500;swallow=0;return s},holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
     sync(){holder.visible=!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
 })();
 function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
@@ -1262,6 +1275,7 @@ canvas.addEventListener("pointermove",ev=>{
 let down=null;
 canvas.addEventListener("pointerdown",ev=>{down={x:ev.clientX,y:ev.clientY}});
 canvas.addEventListener("pointerup",ev=>{
+  if(keysNote.swallowed()){down=null;return}
   if(!down||tween||fly.on)return;
   const moved=Math.hypot(ev.clientX-down.x,ev.clientY-down.y);down=null;
   if(moved>6||controls.clickBlocked)return;     // a drag or pinch is never a click
