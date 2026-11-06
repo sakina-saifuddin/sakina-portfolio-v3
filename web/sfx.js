@@ -92,6 +92,16 @@ export function createSfx({ enabled }) {
       }
       click(t, 0.3 + Math.random() * 0.1); tone(t, 0.05, "square", 160 + Math.random() * 50, 90, 0.06, 1100);
     },
+    // a sip of coffee: a soft slurp, a few bubbles, a gulp and a small "ahh". sip(0) is the dry sound of an empty mug.
+    sip(level = 1) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      if (level <= 0) { hiss(t, 0.3, 0.07, "bandpass", 1900, 900, 3); tone(t + 0.18, 0.08, "sine", 500, 320, 0.03); return; }
+      hiss(t, 0.5, 0.11, "bandpass", 700, 2300, 3.5);
+      hiss(t + 0.05, 0.4, 0.035, "highpass", 4500, 3000);
+      for (let i = 0; i < 4; i++) tone(t + 0.1 + i * 0.09 + Math.random() * 0.03, 0.07, "sine", 520 + Math.random() * 380, 260, 0.03);
+      tone(t + 0.62, 0.15, "sine", 190, 90, 0.2); tone(t + 0.8, 0.1, "sine", 160, 85, 0.1);
+      hiss(t + 0.95, 0.4, 0.04, "lowpass", 900, 350);
+    },
     // one tick per call, quieter the farther the camera is from the clock
     tick(dist = 1.5) {
       if (!ready() || !clockBuf) return;

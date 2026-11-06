@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=5";
+import {createSfx} from "./sfx.js?v=6";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -470,7 +470,7 @@ const rainU={uTime:{value:0}};
 }
 
 // Steam over the coffee. Mug_Coffee surface: three.js x -0.236, y 0.809, z -1.883. The Blender steam curves are not exported.
-const steamU={uTime:{value:0},uPx:{value:700}};
+const steamU={uTime:{value:0},uPx:{value:700},uK:{value:1}};
 {
   const N=36,pos=new Float32Array(N*3),seed=new Float32Array(N*4);
   for(let i=0;i<N;i++){seed[i*4]=Math.random();seed[i*4+1]=Math.random();seed[i*4+2]=Math.random();seed[i*4+3]=Math.random()}
@@ -478,7 +478,7 @@ const steamU={uTime:{value:0},uPx:{value:700}};
   g.setAttribute("position",new THREE.BufferAttribute(pos,3));
   g.setAttribute("seed",new THREE.BufferAttribute(seed,4));
   const m=new THREE.ShaderMaterial({uniforms:steamU,transparent:true,depthWrite:false,
-    vertexShader:`uniform float uTime,uPx;attribute vec4 seed;varying float vA;
+    vertexShader:`uniform float uTime,uPx,uK;attribute vec4 seed;varying float vA;
       void main(){
         float life=3.4+seed.x*1.6;float ph=fract(uTime/life+seed.y);
         float h=ph*0.2;
@@ -488,11 +488,66 @@ const steamU={uTime:{value:0},uPx:{value:700}};
         vec4 mv=viewMatrix*vec4(p,1.0);
         gl_Position=projectionMatrix*mv;
         gl_PointSize=uPx*(0.02+ph*0.06+seed.x*0.012)/-mv.z;
-        vA=smoothstep(0.,.14,ph)*(1.-smoothstep(.45,1.,ph))*(.5+seed.x*.5);
+        vA=smoothstep(0.,.14,ph)*(1.-smoothstep(.45,1.,ph))*(.5+seed.x*.5)*uK;
       }`,
     fragmentShader:`varying float vA;
       void main(){float d=length(gl_PointCoord-.5)*2.;float a=smoothstep(1.,0.,d);a*=a;gl_FragColor=vec4(vec3(.95,.92,.88),a*vA*.4);}`});
   const pts=new THREE.Points(g,m);pts.frustumCulled=false;pts.renderOrder=2;scene.add(pts);
+}
+
+// The mug on the desk: a click is a sip (soft slurp) and the coffee goes down a little, six sips to an empty cup (a reload refills it).
+// The coffee surface (a flat disc, measured from the baked desk mesh) is cut out of Room_Desk and drawn as its own disc that sinks and
+// narrows with the cup, lit like the original but darker the deeper it goes. The steam weakens with the coffee.
+const MUG={top:0.8081,floor:0.7365,sips:6,film:0.004,cx:-0.2359,cz:-1.8832,rTop:0.0445};
+const mug={disc:null,hit:null,left:MUG.sips,level:MUG.top,goal:MUG.top,last:0,base:1};
+const mugRin=y=>0.0295+(y-0.736)/0.084*0.0135;   // inner radius of the cup at height y
+function setupMug(){
+  const src=meshes.Room_Desk;if(!src||mug.disc)return;
+  const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!UV||!N)return;
+  src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+  const v=[new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()],e1=new THREE.Vector3(),e2=new THREE.Vector3(),ia=I.array,keep=[],take=[];
+  for(let t=0;t<ia.length;t+=3){
+    let y0=1e9,y1=-1e9,cx=0,cz=0;
+    for(let k=0;k<3;k++){v[k].fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);y0=Math.min(y0,v[k].y);y1=Math.max(y1,v[k].y);cx+=v[k].x/3;cz+=v[k].z/3}
+    let coffee=false;
+    if(y0>0.8070&&y1<0.8092&&Math.hypot(cx-MUG.cx,cz-MUG.cz)<MUG.rTop){e1.subVectors(v[1],v[0]);e2.subVectors(v[2],v[0]);e1.cross(e2);coffee=Math.abs(e1.y)>0.9*e1.length()}
+    (coffee?take:keep).push(ia[t],ia[t+1],ia[t+2]);
+  }
+  if(take.length<900){console.warn("mug: coffee surface not found",take.length/3);return}
+  const n=take.length,pos=new Float32Array(n*3),nor=new Float32Array(n*3),uvs=new Float32Array(n*2),w=new THREE.Vector3();
+  let sx=0,sz=0;
+  for(let i=0;i<n;i++){w.fromBufferAttribute(P,take[i]).applyMatrix4(M);pos[i*3]=w.x;pos[i*3+1]=w.y;pos[i*3+2]=w.z;sx+=w.x;sz+=w.z;
+    w.fromBufferAttribute(N,take[i]).applyMatrix3(NM).normalize();nor[i*3]=w.x;nor[i*3+1]=w.y;nor[i*3+2]=w.z;
+    uvs[i*2]=UV.getX(take[i]);uvs[i*2+1]=UV.getY(take[i])}
+  const cx=sx/n,cz=sz/n;
+  for(let i=0;i<n;i++){pos[i*3]-=cx;pos[i*3+1]-=MUG.top;pos[i*3+2]-=cz}
+  const gd=new THREE.BufferGeometry();
+  gd.setAttribute("position",new THREE.BufferAttribute(pos,3));gd.setAttribute("normal",new THREE.BufferAttribute(nor,3));gd.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+  g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+  const mat=src.material.clone();mat.onBeforeCompile=()=>{};if(src.material.envMap)mat.envMap=src.material.envMap;envReady.then(t=>{mat.envMap=t;mat.needsUpdate=true});
+  mug.base=mat.emissiveIntensity??1;
+  const d=new THREE.Mesh(gd,mat);d.position.set(cx,MUG.top,cz);d.frustumCulled=false;d.name="MugCoffee";scene.add(d);mug.disc=d;
+  const h=new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.052,0.11,16),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+  h.position.set(cx,0.775,cz);h.name="MugHit";scene.add(h);mug.hit=h;
+  console.log("mug: coffee disc",take.length/3,"triangles");
+}
+function stepMug(now){
+  if(!mug.disc)return;
+  const dt=Math.min(.1,(now-(mug.last||now))/1000);mug.last=now;
+  const d=mug.goal-mug.level;
+  mug.level=Math.abs(d)<1e-5?mug.goal:mug.level+d*Math.min(1,dt*(reduced?60:5));
+  const y=mug.level,s=Math.max(0.55,Math.min(1,mugRin(y)*0.955/0.0425)),f=Math.max(0,(y-MUG.floor-MUG.film)/(MUG.top-MUG.floor-MUG.film));
+  mug.disc.position.y=y;mug.disc.scale.set(s,1,s);
+  mug.disc.material.emissiveIntensity=mug.base*(1-0.55*(1-f));
+  steamU.uK.value=Math.pow(f,0.8);
+}
+function sipMug(){
+  if(!mug.disc)return;
+  if(mug.left<=0){sfx.sip(0);nudge("THE MUG IS EMPTY · RELOAD THE PAGE FOR A REFILL");return}
+  mug.left--;
+  mug.goal=MUG.floor+MUG.film+(MUG.top-MUG.floor-MUG.film)*mug.left/MUG.sips;
+  sfx.sip(1);
+  nudge(mug.left>0?"AHH. "+mug.left+(mug.left===1?" SIP":" SIPS")+" LEFT":"THAT WAS THE LAST SIP");
 }
 
 // Tape logos: the baked lightmap cannot hold them (each logo quad got a ~140x10 px lightmap island), so they are drawn as
@@ -876,6 +931,7 @@ function moveHint(h,ev){
 function tipFor3d(h){
   switch(h.kind){
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
+    case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
     case"ibm":return "CLICK TO USE THE COMPUTER";
     case"pad":return "CLICK TO LIFT THE WORK NOTES";
     case"desk":return snap?.name==="desk"?"CLICK TO ZOOM BACK OUT":"CLICK TO ZOOM IN ON THE TV";
@@ -934,6 +990,7 @@ function pick(ev){
   const targets=["Room_Tapes","Room_Station","Room_Desk"].map(n=>meshes[n]).filter(Boolean);
   targets.push(padMesh,tvButton.hit,pcButton.hit,crtHit,windowHit,...VCR);
   if(notebook)targets.push(...notebook.pickMeshes());
+  if(mug.hit)targets.push(mug.hit);
   if(phone)targets.push(...phone.pickMeshes());
   if(callBubble.on)targets.push(callBubble.bubble);
   if(deck)targets.push(...deck.pickMeshes());
@@ -942,6 +999,7 @@ function pick(ev){
   const n=hit.object.name;
   if(hit.object.userData.tape!==undefined)return {kind:"tapes",idx:hit.object.userData.tape};
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
+  if(n==="MugHit")return {kind:"mug"};
   if(n==="Pad")return {kind:"pad"};
   if(hit.object.userData.notebook)return {kind:"notepad",nav:notebook?.navAt(hit)};
   if(hit.object.userData.vcr)return {kind:"vcr",id:hit.object.userData.vcr};
@@ -988,6 +1046,7 @@ canvas.addEventListener("pointerup",ev=>{
   else if(hit.kind==="tapes")showTape(hit.idx);
   else if(hit.kind==="notepad"&&snap?.name==="notepad"&&hit.nav!=null)notebook.flip(hit.nav);
   else if(hit.kind==="phone")phoneClick(hit.part);
+  else if(hit.kind==="mug")sipMug();
   else go(hit.kind);
 });
 
@@ -1088,7 +1147,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();syncCall(now);if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);syncMenu();syncCall(now);if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
@@ -1576,6 +1635,7 @@ function warm(){
 }
 Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   hideSheet();
+  try{setupMug()}catch(e){console.warn("mug failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}
   try{setupWind()}catch(e){console.warn("wind failed",e)}
   try{setupPlant()}catch(e){console.warn("plant failed",e)}

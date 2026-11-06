@@ -133,3 +133,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   `pipeline/tools/zoom_view_photo.mjs`) and `VIEW_ZOOM` defaults to 1 (was 2.3 scaled at runtime on the small patch; `?vz=` still overrides). Compared at phone size (430x932, window view, drag left / right / steep down):
   before = smeared panorama, after = real photo (skyline, METRO, TV tower, rails) everywhere. Trade-off: the photo is magnified more (source is 2576x1718), so fine detail is limited by that file.
   Not changed: baked wood of the window sill looks soft (room bake resolution). `main-pad.js?v=120`.
+
+## 2026-11-06 — Mug sip (branch `newversion`, main-pad.js?v=123, sfx.js?v=6)
+- Click the mug on the desk: soft sip sound (synth, `sfx.sip`), coffee level drops, steam weakens. Six sips to empty; empty click gives a dry sound and a message. Reload refills.
+- Coffee surface (~1600 flat triangles) is cut from `Room_Desk` at runtime and drawn as its own disc that sinks and narrows with the cup. Hover hint: "CLICK TO TAKE A SIP OF COFFEE". Invisible `MugHit` cylinder is picked before the notepad fallback.
+- Verified (local software-render Playwright): coffee disc found, 6 sips move the level 0.8081 → 0.7405, no console errors, crops show the level dropping.
+- NOT verified: sip sound (no audio in cloud), tween smoothness, real hover/click on a phone, whether the coffee colour darkening looks right (it looked darker than the original after the first sips).
