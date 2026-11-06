@@ -95,22 +95,24 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
   function ringTone(now) {
     if (!soundOn?.() || reduced) return;
     const ph = (now / 1000) % 3.6;
-    if (ph > 0.9 || ring.last === Math.floor(now / 3600)) return;
-    ring.last = Math.floor(now / 3600);
+    // Soft ring: only the first few rings are audible, after that the handset keeps shaking and the lamp keeps blinking in silence.
+    if (ph > 0.9 || ring.last === Math.floor(now / 3600) || ring.n >= RING_MAX) return;
+    ring.last = Math.floor(now / 3600); ring.n++;
     try {
       actx ||= new AudioContext();
       if (actx.state === "suspended") actx.resume();
       const t = actx.currentTime, gn = actx.createGain();
       gn.gain.value = 0; gn.connect(actx.destination);
       for (let k = 0; k < 18; k++) {
-        const o = actx.createOscillator(); o.type = "square"; o.frequency.value = k % 2 ? 1180 : 1480;
-        const gg = actx.createGain(); gg.gain.setValueAtTime(0, t + k * 0.05); gg.gain.linearRampToValueAtTime(0.018, t + k * 0.05 + 0.005); gg.gain.setValueAtTime(0, t + k * 0.05 + 0.045);
+        const o = actx.createOscillator(); o.type = "sine"; o.frequency.value = k % 2 ? 1180 : 1480;
+        const gg = actx.createGain(); gg.gain.setValueAtTime(0, t + k * 0.05); gg.gain.linearRampToValueAtTime(RING_GAIN, t + k * 0.05 + 0.012); gg.gain.linearRampToValueAtTime(0, t + k * 0.05 + 0.048);
         o.connect(gg); gg.connect(gn); o.start(t + k * 0.05); o.stop(t + k * 0.05 + 0.05);
       }
       gn.gain.value = 1;
     } catch { /* audio unavailable */ }
   }
-  const ring = { last: -1 };
+  const ring = { last: -1, n: 0 };
+  const RING_MAX = 3, RING_GAIN = 0.0065;   // was a square wave at 0.018
 
   function answer() {
     if (st.mode !== "ringing" && st.mode !== "idle") return false;

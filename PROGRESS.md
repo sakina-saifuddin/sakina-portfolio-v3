@@ -107,3 +107,7 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   (">> LOADING", "CH 00", bar at 100%) showing through the entry gate during its 1 s fade-out; the name screen only took over once the gate element was removed.
   `crtScreen` now switches to `name` on the `crt-enter` event. `main-pad.js?v=112`. Checked: no console errors; the transition itself is NOT verified by eye
   (software rendering too slow); needs a look on the laptop.
+
+- 2026-11-06 — **newversion: softer phone ring.** `web/phone.js`: ring tone changed from a square wave (gain 0.018) to a sine (gain 0.0065, soft attack/release),
+  and only the first 3 rings are audible (`RING_MAX`); the handset shake and the blinking red lamp continue until answered. `phone.js?v=7`, `main-pad.js?v=113`.
+  Not listened to (no audio in the cloud): needs a check on the laptop; adjust `RING_GAIN` / `RING_MAX`.
