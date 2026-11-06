@@ -10,7 +10,7 @@ import {Ambience} from "./audio.js";
 import {pad} from "./pad-content.js";
 import {makePadTexture,PAD,UNDER,PAD_ROWS,PAD_W,PAD_H} from "./pad-texture.js";
 import {createTapeDeck} from "./tape-deck.js?v=4";
-import {makeIbmTerminal} from "./ibm-terminal.js?v=6";
+import {makeIbmTerminal} from "./ibm-terminal.js?v=7";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
 import {createPhone} from "./phone.js?v=9";
@@ -623,7 +623,7 @@ function buildViews(){
   VIEWS={
     home:{target:HOME.target.clone(),pos:HOME.pos.clone()},
     tapes:{...fT,shift:(sideT+40)/2},
-    ibm:{target:new THREE.Vector3(-2.72,0.84,-1.2),pos:new THREE.Vector3(-1.78,0.97,-1.2)},
+    ibm:{target:new THREE.Vector3(-2.72,0.86,-1.2),pos:new THREE.Vector3(-2.2,0.95,-1.2)},   // closer (was 0.94 m, now 0.52 m) so the 40-column screen reads like the reference
     clocks:{target:new THREE.Vector3(-1.8,2.1,-2.55),pos:new THREE.Vector3(-1.0,1.5,-0.5)},
     notepad:{target:new THREE.Vector3(-0.385,0.739,-1.84),pos:new THREE.Vector3(-0.385,1.14,-1.63)},
     work:{...fP,shift:(sideP+40)/2},
@@ -1612,8 +1612,8 @@ function stepTv(now){
 }
 
 const ibmLights=addIbmLights(scene);
-const term=makeIbmTerminal({scene,position:[-2.7573,0.873,-1.1926],size:[0.283,0.208],rotationY:1.2896,onType:k=>sfx.type(k),onOpenLink:href=>{if(href.startsWith("mailto:"))location.href=href;else window.open(href,"_blank","noopener")}});
-addEventListener("keydown",e=>{if(e.metaKey||e.ctrlKey||e.altKey||document.getElementById("crt-gate"))return;if(term.onKey(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
+const term=makeIbmTerminal({scene,position:[-2.7573,0.873,-1.1926],size:[0.283,0.208],rotationY:1.2896,onType:k=>sfx.type(k),onExit:()=>go("home"),onOpenLink:href=>{if(href.startsWith("mailto:"))location.href=href;else window.open(href,"_blank","noopener")}});
+addEventListener("keydown",e=>{if(e.metaKey||e.altKey||document.getElementById("crt-gate"))return;if(e.ctrlKey&&!(term.active&&/^c$/i.test(e.key)))return;if(term.onKey(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
 
 // COMPUTER power: its red monitor button (PC_MonPwrButton, x -2.689, y .738..755, z -1.334..-1.317) switches the green screen off and on
 // with the same collapse as the TV. The baked glow on the keyboard and desk stays as it is.

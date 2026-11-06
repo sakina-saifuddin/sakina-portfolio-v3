@@ -149,3 +149,16 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - The synthesized sip stays as a fallback if the clips are not loaded yet. Empty-mug sound unchanged (synth).
 - Verified: all three clips served 200, decode in Chromium, sip returns the clip duration, no console errors. NOT verified: how it sounds/loudness (no audio in cloud).
 - Credit: Freesound community "slurping" (check the licence on the Freesound page before going to main; credit may be required).
+- 2026-11-06 — **newversion: the IBM computer screen now works like the reference (Felix's site): the visitor types.** Before, the screen printed ABOUT by itself after boot and
+  scrolled on and on; only a few words could be typed. Now (`web/ibm-terminal.js`, `web/ibm-content.js`, new `web/basic.js`): boot text "Personal Computer BASIC Version 1.10 /
+  Hi! Type ABOUT to start, or HELP." then READY and a blinking cursor, and **nothing runs until the visitor types**. 40 x 25 text screen (wide VT323, bright command names), function-key
+  row `1ABOUT 2ONLINE 3HELP 4FILES 5RUN` (F1-F5 or click: the computer types the word and presses Enter). HELP copied from the reference screenshot, with her own commands (WORK, PROJECTS,
+  HACKS, ROLES, EMAIL, LINKEDIN, GITHUB, ASK, SYSTEM). ABOUT/ROLES/WORK/PROJECTS/HACKS text unchanged, typed out a page at a time ("-- PRESS ENTER FOR MORE --"; Up/PageUp scroll back).
+  ONLINE (also the CONTACT menu button) = a "SAKINA BBS" links screen like his Night Owl BBS (big block banner, keys 1-4 or click to open, Q hangs up). Real BASIC: type `PRINT 2+2`, or
+  number a line and RUN; PRINT INPUT LET IF/THEN/ELSE GOTO GOSUB FOR NEXT WHILE DATA READ DIM, LIST NEW EDIT DELETE SAVE TRON/TROFF, Ctrl+C stops. FILES lists HELLO, SQUARES, GUESS, SKILLS
+  (`RUN "HELLO"`). Letters typed while text is still printing wait (type-ahead). Screen memory is kept when she leaves and returns; a power cycle reboots it.
+  Controls: "C Computer" is now **"C Use computer"** in both the top key row and the "?" sticky note (`index.html`). Computer camera moved closer (0.94 m -> 0.52 m, `VIEWS.ibm` in `main-pad.js`) so the 40-column text is readable. Ctrl+C is let through to the
+  screen while it is active (`main-pad.js` key handler). `main-pad.js?v=126`, `ibm-terminal.js?v=7`.
+  Tested: `pipeline/tests/basic_test.mjs` (interpreter, 14 checks pass); canvas rendered headless with VT323 and driven by keystrokes (boot, HELP, program run, INPUT, Ctrl+C break, FILES/SAVE,
+  F-keys, ONLINE open-link, type-ahead); real page loaded with local three@0.160 (no console errors; C opens the view, typing `help` shows HELP, Esc returns). NOT verified on the real Netlify URL.
+  Not done: the reference's SNAKE / BLOCKS / ZOMBIE games, DEMO screensaver, OPTIONS, DEBUG fly-around, RENUM/AUTO/CONT; no on-screen keyboard for phones yet (taps on the F-key row still work).
