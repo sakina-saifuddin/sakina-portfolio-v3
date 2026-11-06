@@ -367,7 +367,7 @@ const crtScreen=(()=>{
   const draw=t=>{
     g.setTransform(1,0,0,1,0,0);g.setTransform(K,0,0,K,0,0);
     if(mode==="loading"&&!document.getElementById("crt-gate")){lastAct=performance.now();setMode("name",lastAct)}
-    if(mode==="name"&&performance.now()-lastAct>12000)setMode("tape",performance.now());
+    if(mode==="name"&&performance.now()-lastAct>8000)setMode("tape",performance.now());
     if(mode==="loading"){
       paintBg(g);osd("▶▶ LOADING",60,82);osd("CH 00",900,82,"right");
       g.font="44px VT323";g.textAlign="left";g.fillStyle="#f4f5ff";
@@ -1307,9 +1307,9 @@ function addIntroTape(matFor){
   }
   q.holder.add(lab);
 }
-// After the gate opens the name screen stays up for 10 seconds (counted from when the gate has faded away), then the intro film starts.
+// After the gate opens the name screen stays up for 6 seconds (counted from when the gate has faded away), then the intro film starts.
 // The film is fetched during that time so it can start the moment the name screen ends.
-const NAME_HOLD=10000,GATE_FADE=1000;
+const NAME_HOLD=6000,GATE_FADE=1000;
 addEventListener("crt-enter",()=>{
   try{fetch(VIDEOS[11],{cache:"force-cache"}).then(r=>r.blob()).catch(()=>{})}catch{}
   setTimeout(()=>{

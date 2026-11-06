@@ -99,3 +99,6 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   (`k<0.97`). Now the layer is opaque as soon as it is visible (`smoothstep(0,.08)`), the screen canvas / OSD only show when the layer is gone, and a buffering
   dip shorter than 0.4 s no longer fades the picture. `main-pad.js?v=110`. Verified in the cloud: the 11 s timer is registered and the intro file is requested
   right after Enter; no console errors. NOT verified by eye (software rendering too slow to watch a transition): needs a look on the laptop.
+
+- 2026-11-06 — **newversion: name screen shortened to 6 s** (was 10 s): `NAME_HOLD=6000` in `web/main-pad.js` (intro film starts 7 s after the click: 6 s after the gate has faded);
+  the name->"INSERT TAPE" fallback is now 8 s. `main-pad.js?v=111`.
