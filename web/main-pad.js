@@ -744,24 +744,50 @@ document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",(
 $("home-link").addEventListener("click",()=>{if(!document.documentElement.classList.contains("crt-gating"))go("home")});
 let menuIbm="ibm";
 const menuLinks=[...document.querySelectorAll(".menu [data-view]")];let menuCur="";
-// "INCOMING" speech bubble on top of the phone: shown only while the phone rings, follows the phone on screen, click answers it.
-const callHint=$("call-hint"),_cv=new THREE.Vector3();let callOn=false;
-callHint?.addEventListener("click",()=>go("phone"));
-function syncCall(){
-  let on=!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate");
-  if(on){
-    const f=phone.frame;_cv.set((f.min.x+f.max.x)/2,f.max.y+0.03,(f.min.z+f.max.z)/2).project(camera);
-    if(_cv.z>1)on=false;
-    else{
-      // keep the bubble fully on screen; when the phone is past the edge the bubble sits at the edge and points toward it
-      const W=innerWidth,H=innerHeight,hw=(callHint.offsetWidth||130)/2+10,px=(_cv.x+1)/2*W,py=(1-_cv.y)/2*H;
-      const cx=Math.min(W-hw,Math.max(hw,px)),cy=Math.min(H-110,Math.max(70,py));
-      callHint.style.left=cx.toFixed(1)+"px";callHint.style.top=cy.toFixed(1)+"px";
-      callHint.classList.toggle("edge-r",px>W-hw+4);callHint.classList.toggle("edge-l",px<hw-4);
-    }
+// "INCOMING" speech bubble: a white billboard fixed in the room with its tail on the top of the ringing phone, so it stays with the phone when the camera
+// moves. A red phone symbol inside it shakes with the handset. Shown only while the phone rings; clicking it answers the phone.
+const callBubble=(()=>{
+  const W=768,H=256,SW=0.48,SH=SW*H/W,TIP=[706,244],ICON=[84,90];   // the phone sits at the very edge of the home view, so the pointer is long
+  const bc=document.createElement("canvas");bc.width=W;bc.height=H;const x=bc.getContext("2d");
+  const draw=()=>{
+    x.clearRect(0,0,W,H);x.save();
+    x.shadowColor="rgba(0,0,0,.4)";x.shadowBlur=14;x.shadowOffsetY=4;
+    x.fillStyle="#f4f2ec";x.beginPath();x.roundRect(14,10,436,160,16);x.fill();
+    x.shadowColor="transparent";x.beginPath();x.moveTo(318,157);x.lineTo(TIP[0],TIP[1]);x.lineTo(402,157);x.closePath();x.fill();
+    x.restore();
+    x.fillStyle="#1d1712";x.textBaseline="middle";x.font="700 44px 'IBM Plex Mono',ui-monospace,monospace";
+    try{x.letterSpacing="5px"}catch{}
+    x.fillText("INCOMING",148,92);
+    bt.needsUpdate=true;
+  };
+  const bt=new THREE.CanvasTexture(bc);bt.colorSpace=THREE.SRGBColorSpace;
+  const ic=document.createElement("canvas");ic.width=ic.height=128;{
+    const g=ic.getContext("2d");g.strokeStyle=g.fillStyle="#e0301f";g.lineCap="round";
+    g.translate(64,64);g.rotate(-0.62);g.translate(-64,-64);   // a receiver: curved handle with an earpiece and a mouthpiece, tilted like a call icon
+    g.lineWidth=14;g.beginPath();g.arc(64,92,36,Math.PI*1.2,Math.PI*1.8);g.stroke();
+    for(const ex of [28,100]){g.beginPath();g.roundRect(ex-15,70,30,34,11);g.fill()}
   }
-  if(on!==callOn){callOn=on;callHint.hidden=!on}
-}
+  const it=new THREE.CanvasTexture(ic);it.colorSpace=THREE.SRGBColorSpace;
+  const mk=(map,order)=>new THREE.SpriteMaterial({map,transparent:true,depthTest:false,depthWrite:false,toneMapped:false});
+  const bubble=new THREE.Sprite(mk(bt));bubble.center.set(TIP[0]/W,1-TIP[1]/H);bubble.scale.set(SW,SH,1);bubble.renderOrder=40;
+  const icon=new THREE.Sprite(mk(it));icon.scale.set(0.085,0.085,1);icon.renderOrder=41;
+  bubble.userData.phone="handset";bubble.name="CallBubble";
+  bubble.visible=icon.visible=false;scene.add(bubble,icon);
+  draw();document.fonts?.ready.then(draw);
+  const tip=new THREE.Vector3(),r=new THREE.Vector3(),u=new THREE.Vector3();
+  return {bubble,get on(){return bubble.visible},
+    update(now,on){
+      if(bubble.visible!==on)bubble.visible=icon.visible=on;
+      if(!on)return;
+      const f=phone.frame;tip.set((f.min.x+f.max.x)/2,f.max.y+0.012,(f.min.z+f.max.z)/2);
+      camera.updateMatrixWorld();r.setFromMatrixColumn(camera.matrixWorld,0);u.setFromMatrixColumn(camera.matrixWorld,1);
+      bubble.position.copy(tip);
+      icon.position.copy(tip).addScaledVector(r,(ICON[0]-TIP[0])/W*SW).addScaledVector(u,(TIP[1]-ICON[1])/H*SH);
+      const k=(now/1000)%3.6,w=reduced||k>1?0:1;
+      icon.material.rotation=w*(0.34*Math.sin(now*0.118)+0.08*Math.sin(now*0.047));
+    }};
+})();
+function syncCall(now){callBubble.update(now,!!phone&&phone.mode==="ringing"&&!document.getElementById("crt-gate"))}
 function syncMenu(){
   const cur=padOpen()?"pad":term.active?menuIbm:"";
   if(cur===menuCur)return;menuCur=cur;
@@ -904,6 +930,7 @@ function pick(ev){
   targets.push(padMesh,tvButton.hit,pcButton.hit,crtHit,windowHit,...VCR);
   if(notebook)targets.push(...notebook.pickMeshes());
   if(phone)targets.push(...phone.pickMeshes());
+  if(callBubble.on)targets.push(callBubble.bubble);
   if(deck)targets.push(...deck.pickMeshes());
   const hit=ray.intersectObjects(targets,false)[0];
   if(!hit)return null;
@@ -1056,7 +1083,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();syncCall();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();syncCall(now);if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;

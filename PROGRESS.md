@@ -121,3 +121,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
   home view). While the phone rings: bubble + handset shake + blinking red lamp + soft ring, all until answered. As soon as it is answered (`mode!=="ringing"`) all four stop;
   the lamp no longer stays half-lit during the call (`phone.js`). The 3-ring cap was removed: the soft ring repeats until answered. Click on the bubble answers.
   `main-pad.js?v=116`, `phone.js?v=8`. Tested locally: bubble visible after entering, click hides it, no console errors; ring sound and shake not heard/seen in the cloud.
+
+- 2026-11-06 — **newversion: phone bubble rebuilt as a white 3D bubble.** Replaces the DOM bubble. `callBubble` in `web/main-pad.js`: two `THREE.Sprite`s (white bubble with "INCOMING" and a long
+  pointer whose tip sits on top of the phone; red receiver icon that shakes in time with the handset), positioned from `phone.frame` every frame, so it stays fixed in the room when the
+  camera moves (billboards toward the camera, drawn on top, no bloom). The phone is at the very edge of the home view, hence the long pointer so the bubble body stays on screen.
+  Visible only while `phone.mode==="ringing"`; click on it answers the phone (added to `pick` targets only while visible). `main-pad.js?v=119`. Tested locally: bubble visible after Enter,
+  click flies to the phone, lifts the handset and the bubble disappears; no console errors. Shake animation and ring sound not seen/heard in the cloud.
