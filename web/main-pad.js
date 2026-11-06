@@ -629,6 +629,57 @@ function setupMug(){
   h.position.set(cx,0.775,cz);h.name="MugHit";scene.add(h);mug.hit=h;
   console.log("mug: coffee disc",take.length/3,"triangles");
 }
+// Pencil holder: click it and the pencils turn inside the cup. The sticks (everything that stands out of the cup within 7.5 cm of its axis)
+// are cut out of Room_Desk into their own small mesh at load; it turns about the cup's vertical axis, so they stay inside the cup.
+const PENCIL_AXIS={x:-0.700,z:-1.940,y:0.72,rMax:0.075,yCup:0.830};
+const pencils={mesh:null,hit:null,ang:0,goal:0,last:0};
+function setupPencils(){
+  const src=meshes.Room_Desk;if(!src||pencils.mesh)return;
+  const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!UV||!N)return;
+  src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+  const n=P.count,ia=I.array,par=new Int32Array(n);for(let i=0;i<n;i++)par[i]=i;
+  const find=a=>{while(par[a]!==a){par[a]=par[par[a]];a=par[a]}return a};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[b]=a};
+  for(let t=0;t<ia.length;t+=3){uni(ia[t],ia[t+1]);uni(ia[t],ia[t+2])}
+  // world positions, and per connected piece: furthest horizontal distance from the axis, lowest and highest point
+  const w=new Float32Array(n*3),v=new THREE.Vector3(),far=new Map(),lo=new Map(),hi=new Map();
+  for(let i=0;i<n;i++){
+    v.fromBufferAttribute(P,i).applyMatrix4(M);w[i*3]=v.x;w[i*3+1]=v.y;w[i*3+2]=v.z;
+    const r=find(i),d=Math.hypot(v.x-PENCIL_AXIS.x,v.z-PENCIL_AXIS.z);
+    if(!far.has(r)){far.set(r,d);lo.set(r,v.y);hi.set(r,v.y)}else{if(d>far.get(r))far.set(r,d);if(v.y<lo.get(r))lo.set(r,v.y);if(v.y>hi.get(r))hi.set(r,v.y)}
+  }
+  const isItem=r=>far.get(r)<=PENCIL_AXIS.rMax&&hi.get(r)>PENCIL_AXIS.yCup&&lo.get(r)>0.715&&hi.get(r)-lo.get(r)<0.3;
+  const keep=[],take=[];
+  for(let t=0;t<ia.length;t+=3)(isItem(find(ia[t]))?take:keep).push(ia[t],ia[t+1],ia[t+2]);
+  if(take.length<60){console.warn("pencils: sticks not found",take.length/3);return}
+  const m=take.length,pos=new Float32Array(m*3),nor=new Float32Array(m*3),uvs=new Float32Array(m*2),q=new THREE.Vector3();
+  for(let i=0;i<m;i++){
+    const k=take[i];pos[i*3]=w[k*3]-PENCIL_AXIS.x;pos[i*3+1]=w[k*3+1]-PENCIL_AXIS.y;pos[i*3+2]=w[k*3+2]-PENCIL_AXIS.z;
+    q.fromBufferAttribute(N,k).applyMatrix3(NM).normalize();nor[i*3]=q.x;nor[i*3+1]=q.y;nor[i*3+2]=q.z;
+    uvs[i*2]=UV.getX(k);uvs[i*2+1]=UV.getY(k);
+  }
+  const gd=new THREE.BufferGeometry();
+  gd.setAttribute("position",new THREE.BufferAttribute(pos,3));gd.setAttribute("normal",new THREE.BufferAttribute(nor,3));gd.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+  g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+  const mat=src.material.clone();mat.onBeforeCompile=()=>{};if(src.material.envMap)mat.envMap=src.material.envMap;envReady.then(t=>{mat.envMap=t;mat.needsUpdate=true});
+  lampDim(mat,"Pencils");
+  const d=new THREE.Mesh(gd,mat);d.position.set(PENCIL_AXIS.x,PENCIL_AXIS.y,PENCIL_AXIS.z);d.frustumCulled=false;d.name="PencilSticks";scene.add(d);pencils.mesh=d;
+  const h=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.22,16),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));
+  h.position.set(PENCIL_AXIS.x,0.82,PENCIL_AXIS.z);h.name="PencilHit";h.userData.pencils=true;scene.add(h);pencils.hit=h;
+  console.log("pencils: sticks",take.length/3,"triangles");
+}
+function spinPencils(){
+  if(!pencils.mesh)return;
+  pencils.goal+=Math.PI*2;sfx.pencils();
+  if(reduced)pencils.ang=pencils.goal;
+}
+function stepPencils(now){
+  if(!pencils.mesh)return;
+  const dt=Math.min(.1,(now-(pencils.last||now))/1000);pencils.last=now;
+  const d=pencils.goal-pencils.ang;if(d===0)return;
+  pencils.ang=Math.abs(d)<0.004?pencils.goal:pencils.ang+d*(1-Math.exp(-dt*3.4));
+  pencils.mesh.rotation.y=pencils.ang;
+}
 function stepMug(now){
   if(!mug.disc)return;
   const dt=Math.min(.1,(now-(mug.last||now))/1000);mug.last=now;
@@ -1417,6 +1468,7 @@ function tipFor3d(h){
   switch(h.kind){
     case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
+    case"pencils":return "CLICK TO SPIN THE PENCILS";
     case"lamp":return "CLICK TO TURN THE "+lamps[h.id].name+(lamps[h.id].on?" OFF":" ON");
     case"calc":return "CLICK TO USE THE CALCULATOR";
     case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
@@ -1481,6 +1533,7 @@ function pick(ev){
   targets.push(padMesh,tvButton.hit,pcButton.hit,crtHit,windowHit,...VCR);
   if(notebook)targets.push(...notebook.pickMeshes());
   if(mug.hit)targets.push(mug.hit);
+  if(pencils.hit)targets.push(pencils.hit);
   targets.push(...lampHits);
   if(calc.group&&!calcOpen())targets.push(calc.body,...calc.keys);
   if(phone)targets.push(...phone.pickMeshes());
@@ -1494,6 +1547,7 @@ function pick(ev){
   if(hit.object.userData.keysNote)return {kind:"keys"};
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
   if(n==="MugHit")return {kind:"mug"};
+  if(hit.object.userData.pencils)return {kind:"pencils"};
   if(hit.object.userData.lamp)return {kind:"lamp",id:hit.object.userData.lamp};
   if(n==="CalcBody"||n==="CalcKey")return {kind:"calc"};
   if(n==="Pad")return {kind:"pad"};
@@ -1545,6 +1599,7 @@ canvas.addEventListener("pointerup",ev=>{
   else if(hit.kind==="keys")keysNote.toggle();
   else if(hit.kind==="phone")phoneClick(hit.part);
   else if(hit.kind==="mug")sipMug();
+  else if(hit.kind==="pencils")spinPencils();
   else if(hit.kind==="lamp")toggleLamp(hit.id);
   else if(hit.kind==="calc")openCalc();
   else go(hit.kind);
@@ -1648,7 +1703,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);stepPencils(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:term.active?0.3:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
@@ -2150,6 +2205,7 @@ function warm(){
 Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   hideSheet();
   try{setupMug()}catch(e){console.warn("mug failed",e)}
+  try{setupPencils()}catch(e){console.warn("pencils failed",e)}
   try{keysNote.attach(meshes.Room_Desk)}catch(e){console.warn("sticky pad failed",e)}
   try{setupCalc()}catch(e){console.warn("calc failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}

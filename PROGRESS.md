@@ -197,3 +197,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 ## 2026-11-06 — Calculator looks the same on the desk and in hand
 - The lifted calculator now uses a copy of the desk material whose position-based tints (desk healing/brightening patches) are fixed to its rest position, so colour no longer changes when it leaves the desk. Removed the lifted-state brightness boost and LCD tint lerp; key travel reduced to 0.9 mm to avoid flicker/cast when pressing.
 - Verified locally (software render): keys at rest ≈ (181,159,138), lifted ≈ (211,166,132), same hue; no console errors. Not yet verified on the published site.
+
+## 2026-11-06 — Pencil holder: click to spin the pencils (branch `newversion`)
+- Click the pencil holder (green cup left of the desk lamp, at x -0.70, z -1.94) and the pencils and pens turn once around inside it (slows to a stop, each click adds one more turn); hover hint "CLICK TO SPIN THE PENCILS"; soft wooden rattle (`sfx.pencils`). With reduced motion the turn is instant.
+- How: `setupPencils` in main-pad.js cuts every connected piece that stands out of the cup (within 7.5 cm of its axis, above y 0.83) out of `Room_Desk` into its own small mesh (`PencilSticks`, ~16k triangles, same baked material), which turns about the cup's vertical axis, so the sticks stay inside the cup. The cup itself and the baked light stay as they were. Invisible `PencilHit` cylinder is the click area.
+- Verified (local software render): sticks found, hover hint, click turns by 2π, a full turn returns the picture pixel-identical, quarter-turn renders show the sticks inside the cup, no console errors. NOT verified: the animation smoothness in motion, the rattle sound, taps on a phone, real-GPU look.
+- Note: in the home view the holder sits just off the left edge of the screen; it shows when the view is dragged a little left or in the notepad view.

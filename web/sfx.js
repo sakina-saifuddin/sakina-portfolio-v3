@@ -116,6 +116,15 @@ export function createSfx({ enabled }) {
       hiss(t + 1.2, 0.5, 0.2, "lowpass", 1000, 350);
       return 1.8;
     },
+    // pencils turning in their holder: a quick wooden rattle that thins out
+    pencils() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      for (let i = 0; i < 9; i++) {
+        const at = t + i * 0.07 + Math.random() * 0.05 + i * i * 0.006, p = 0.2 * Math.pow(0.8, i);
+        hiss(at, 0.03, p, "bandpass", 2600 + Math.random() * 900, 1500, 5);
+        tone(at, 0.05, "triangle", 900 + Math.random() * 700, 520, p * 0.35, 3000);
+      }
+    },
     // a lamp switch: a firm mechanical click, a little lower and softer for off than for on
     lamp(on = true) {
       if (!ready()) return; const t = ctx.currentTime + 0.02;
