@@ -10,7 +10,7 @@ import {Ambience} from "./audio.js";
 import {pad} from "./pad-content.js";
 import {makePadTexture,PAD,UNDER,PAD_ROWS,PAD_W,PAD_H} from "./pad-texture.js";
 import {createTapeDeck} from "./tape-deck.js?v=4";
-import {createRemote} from "./remote.js?v=4";
+import {createRemote} from "./remote.js?v=6";
 import {makeIbmTerminal} from "./ibm-terminal.js?v=8";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";

@@ -84,28 +84,47 @@ export function createRemote({ source, material, camera, reduced, onChange, deco
   const keyCv = document.createElement("canvas"); keyCv.width = CVW; keyCv.height = CVH;
   {
     const g = keyCv.getContext("2d");
-    const GREY = "#a38d73", DARK = "#7e6448", RED = "#d9806c", INK = "#2b1f15";
-    const col = { power: RED, rec: RED, eject: DARK, rew: DARK, ff: DARK, stop: DARK, pause: DARK, menu: DARK, timer: DARK };
-    const keyTop = (x, y, w, d, c, hi = 1) => {
-      const b = 0.22 * Math.min(w, d) * 0.55, kw = (w - 2 * b) * PXM, kd = (d - 2 * b) * PXM, X = px(x) - kw / 2, Y = py(y) - kd / 2;
-      g.fillStyle = "rgba(40,24,10,.55)"; rr(g, X - 3, Y - 3, kw + 6, kd + 6, Math.min(kw, kd) * 0.42); g.fill();
-      const gr = g.createLinearGradient(0, Y, 0, Y + kd); gr.addColorStop(0, c); gr.addColorStop(1, c);
-      g.fillStyle = c; rr(g, X, Y, kw, kd, Math.min(kw, kd) * 0.4); g.fill();
-      const sh = g.createLinearGradient(X, Y, X, Y + kd); sh.addColorStop(0, `rgba(255,255,255,${0.20 * hi})`); sh.addColorStop(0.45, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(0,0,0,.18)");
-      g.fillStyle = sh; rr(g, X, Y, kw, kd, Math.min(kw, kd) * 0.4); g.fill();
+    const GREY = "#d6c3a2", DARK = "#4b3727", RED = "#d2492f", INK = "#24180f", CREAM = "#f3e6cc";
+    const col = { power: RED, rec: RED, eject: DARK, rew: DARK, ff: DARK, stop: DARK, pause: DARK, menu: DARK, timer: DARK, play: "#6a8f5e" };
+    const lit = { power: "#fff", rec: "#fff", eject: CREAM, rew: CREAM, ff: CREAM, stop: CREAM, pause: CREAM, menu: CREAM, timer: CREAM, play: "#fff" };
+    // a raised, moulded key: soft drop shadow, dark gap around it, bevelled rim, glossy dome, bright edge on the lit side
+    const keyTop = (x, y, w, d, c) => {
+      const b = 0.06 * Math.min(w, d), kw = (w - 2 * b) * PXM, kd = (d - 2 * b) * PXM, X = px(x) - kw / 2, Y = py(y) - kd / 2, r = Math.min(kw, kd) * 0.34;
+      g.save(); g.shadowColor = "rgba(20,10,0,.7)"; g.shadowBlur = 14; g.shadowOffsetX = -7; g.shadowOffsetY = 5;
+      g.fillStyle = "rgba(25,14,4,.9)"; rr(g, X - 5, Y - 5, kw + 10, kd + 10, r + 4); g.fill(); g.restore();
+      g.fillStyle = c; rr(g, X, Y, kw, kd, r); g.fill();
+      const dome = g.createRadialGradient(X + kw * 0.38, Y + kd * 0.3, 1, X + kw * 0.5, Y + kd * 0.5, Math.max(kw, kd) * 0.62);
+      dome.addColorStop(0, "rgba(255,255,255,.34)"); dome.addColorStop(0.55, "rgba(255,255,255,.04)"); dome.addColorStop(1, "rgba(0,0,0,.30)");
+      g.fillStyle = dome; rr(g, X, Y, kw, kd, r); g.fill();
+      g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.42)"; rr(g, X + 2, Y + 2, kw - 4, kd - 4, r - 1); g.stroke();
+      g.lineWidth = 2; g.strokeStyle = "rgba(0,0,0,.45)"; rr(g, X, Y, kw, kd, r); g.stroke();
     };
-    const text = (s, x, y, size, bold = true) => {
+    const text = (s, x, y, size, ink = INK) => {
       g.save(); g.translate(px(x), py(y)); g.rotate(-Math.PI / 2);
-      g.font = (bold ? "700 " : "600 ") + Math.round(size * PXM) + "px 'Helvetica Neue', Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      try { g.letterSpacing = Math.round(size * PXM * 0.08) + "px"; } catch (e) {}
-      g.fillStyle = INK; g.fillText(s, 0, 0); g.restore();
+      g.font = "800 " + Math.round(size * PXM) + "px 'Helvetica Neue', Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      try { g.letterSpacing = Math.round(size * PXM * 0.06) + "px"; } catch (e) {}
+      g.fillStyle = ink; g.fillText(s, 0, 0); g.restore();
     };
-    const LAB = { power: ["POWER", 0.0085], eject: ["EJECT", 0.0085], play: ["PLAY", 0.0105], rew: ["REW", 0.0085], ff: ["FF", 0.0085], rec: ["REC", 0.0085], stop: ["STOP", 0.0105], pause: ["PAUSE", 0.0085], menu: ["MENU", 0.008], timer: ["TIMER", 0.008] };
+    // printed symbols on the transport keys, drawn bigger than words so they read at a glance
+    const glyph = (id, x, y, ink) => {
+      g.save(); g.translate(px(x), py(y)); g.rotate(-Math.PI / 2); g.fillStyle = ink; const s = 0.0032 * PXM;
+      const tri = (cx, dir) => { g.beginPath(); g.moveTo(cx + dir * s, 0); g.lineTo(cx - dir * s * 0.8, -s * 0.95); g.lineTo(cx - dir * s * 0.8, s * 0.95); g.closePath(); g.fill(); };
+      if (id === "play") tri(0, 1);
+      else if (id === "rew") { tri(-s * 0.7, -1); tri(s * 0.7, -1); }
+      else if (id === "ff") { tri(-s * 0.7, 1); tri(s * 0.7, 1); }
+      else if (id === "stop") g.fillRect(-s * 0.8, -s * 0.8, s * 1.6, s * 1.6);
+      else if (id === "pause") { g.fillRect(-s * 0.8, -s * 0.85, s * 0.6, s * 1.7); g.fillRect(s * 0.2, -s * 0.85, s * 0.6, s * 1.7); }
+      else if (id === "rec") { g.beginPath(); g.arc(0, 0, s * 0.85, 0, 7); g.fill(); }
+      g.restore();
+    };
+    const WORD = { power: "POWER", eject: "EJECT", menu: "MENU", timer: "TIMER" };
     for (const [id, x, y, w, d] of KEYS) {
       if (id === "chnext" || id === "chprev") continue;
       keyTop(x, y, w, d, col[id] || GREY);
-      if (LAB[id]) text(LAB[id][0], x + LAB[id][1], y, 0.0026);
-      else { const lbl = id === "tv" ? "TV" : id === "plus10" ? "+10" : id; text(lbl, x, y, lbl.length > 1 ? 0.0027 : 0.0036); }
+      const ink = lit[id] || INK;
+      if (["play", "stop", "rew", "ff", "pause", "rec"].includes(id)) glyph(id, x, y, ink);
+      else if (WORD[id]) text(WORD[id], x, y, 0.0030, ink);
+      else { const lbl = id === "tv" ? "TV" : id === "plus10" ? "+10" : id; text(lbl, x, y, lbl.length > 1 ? 0.0033 : 0.0048, ink); }
     }
   }
   // channel rocker: one long key that stands a little taller than the others, so it gets its own plane. An arrow at each end (the IR end is
@@ -113,16 +132,19 @@ export function createRemote({ source, material, camera, reduced, onChange, deco
   const rockCv = document.createElement("canvas"); rockCv.width = CVW; rockCv.height = CVH;
   {
     const g = rockCv.getContext("2d");
-    const w = 0.022, d = 0.010, b = 0.22 * d * 0.55, kw = (w - 2 * b) * PXM, kd = (d - 2 * b) * PXM, X = px(0.067) - kw / 2, Y = py(-0.012) - kd / 2;
-    g.fillStyle = "rgba(40,24,10,.55)"; rr(g, X - 3, Y - 3, kw + 6, kd + 6, kd * 0.42); g.fill();
-    g.fillStyle = "#a38d73"; rr(g, X, Y, kw, kd, kd * 0.4); g.fill();
-    const sh = g.createLinearGradient(X, Y, X, Y + kd); sh.addColorStop(0, "rgba(255,255,255,.20)"); sh.addColorStop(0.45, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(0,0,0,.18)");
-    g.fillStyle = sh; rr(g, X, Y, kw, kd, kd * 0.4); g.fill();
-    g.fillStyle = "#2b1f15";
-    for (const [ax, dir] of [[0.0615, -1], [0.0725, 1]]) { const cx = px(ax), cy = py(-0.012), s = 0.0022 * PXM; g.beginPath(); g.moveTo(cx + dir * s, cy); g.lineTo(cx - dir * s * 0.6, cy - s * 0.9); g.lineTo(cx - dir * s * 0.6, cy + s * 0.9); g.closePath(); g.fill(); }
-    g.save(); g.translate(px(0.067 + 0.0078), py(-0.012)); g.rotate(-Math.PI / 2);
-    g.font = "700 " + Math.round(0.0026 * PXM) + "px 'Helvetica Neue', Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    try { g.letterSpacing = Math.round(0.0026 * PXM * 0.08) + "px"; } catch (e) {}
+    const w = 0.022, d = 0.010, b = 0.06 * d, kw = (w - 2 * b) * PXM, kd = (d - 2 * b) * PXM, X = px(0.067) - kw / 2, Y = py(-0.012) - kd / 2, r = kd * 0.34;
+    g.save(); g.shadowColor = "rgba(20,10,0,.7)"; g.shadowBlur = 14; g.shadowOffsetX = -7; g.shadowOffsetY = 5;
+    g.fillStyle = "rgba(25,14,4,.9)"; rr(g, X - 5, Y - 5, kw + 10, kd + 10, r + 4); g.fill(); g.restore();
+    g.fillStyle = "#d6c3a2"; rr(g, X, Y, kw, kd, r); g.fill();
+    const dome = g.createRadialGradient(X + kw * 0.4, Y + kd * 0.3, 1, X + kw * 0.5, Y + kd * 0.5, kw * 0.6);
+    dome.addColorStop(0, "rgba(255,255,255,.34)"); dome.addColorStop(0.55, "rgba(255,255,255,.04)"); dome.addColorStop(1, "rgba(0,0,0,.30)");
+    g.fillStyle = dome; rr(g, X, Y, kw, kd, r); g.fill();
+    g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.42)"; rr(g, X + 2, Y + 2, kw - 4, kd - 4, r - 1); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = "rgba(0,0,0,.45)"; rr(g, X, Y, kw, kd, r); g.stroke();
+    g.fillStyle = "#24180f";
+    for (const [ax, dir] of [[0.0615, -1], [0.0725, 1]]) { const cx = px(ax), cy = py(-0.012), s = 0.0030 * PXM; g.beginPath(); g.moveTo(cx + dir * s, cy); g.lineTo(cx - dir * s * 0.6, cy - s * 0.9); g.lineTo(cx - dir * s * 0.6, cy + s * 0.9); g.closePath(); g.fill(); }
+    g.save(); g.translate(px(0.067), py(-0.012)); g.rotate(-Math.PI / 2);
+    g.font = "800 " + Math.round(0.0027 * PXM) + "px 'Helvetica Neue', Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText("CH", 0, 0); g.restore();
   }
   const mkPlane = (cv, lift, order) => {
