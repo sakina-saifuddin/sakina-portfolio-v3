@@ -216,3 +216,8 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - After the voice ends, picking up and using speaker again restarts the voice and caption from the beginning.
 - Tested headless (SwiftShader): shake, answer, speaker, hang-up pause, resume, leave-to-home pause, end of playback, restart. Not tested: real speakers, real GPU smoothness, touch.
 - Open: caption text is the approved script, not a word-for-word transcript of the recording; graduation month/year not set.
+
+## Phone: ring on every visit, shake with reduce-motion
+- Cause of "phone not ringing": the phone started idle once it had been answered in the same tab session (sessionStorage), and reduce-motion disabled both shake and ring tone.
+- Fix: phone always starts ringing on page load; shake is kept under reduce-motion (half amplitude); the ring tone no longer depends on reduce-motion (still needs the sound button on). phone.js v11, main-pad.js v140.
+- Not tested: reduce-motion shake and the published site.

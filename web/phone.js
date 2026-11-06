@@ -80,7 +80,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
   // state: ringing -> lifting -> down (handset on the desk) -> speaker; hang-up returns to idle
   const HEARD = "sakina-phone-heard";
   const heard = () => { try { return sessionStorage.getItem(HEARD) === "1"; } catch { return false; } };
-  const st = { mode: heard() ? "idle" : "ringing", s: 0, dir: 0, t0: 0, settle: 0, release: false, done: false };
+  const st = { mode: "ringing", s: 0, dir: 0, t0: 0, settle: 0, release: false, done: false };
   const audioEl = new Audio("sakina-phone-r2.mp3"); audioEl.preload = "auto"; audioEl.volume = 1;
   let actx = null, level = 0;
   const caption = document.getElementById("phone-cap");
@@ -93,7 +93,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
     holder.rotation.set(0, LAND.yaw * v, 0.25 * a * (1 - v) + 0.0);
   }
   function ringTone(now) {
-    if (!soundOn?.() || reduced) return;
+    if (!soundOn?.()) return;
     const ph = (now / 1000) % 3.6;
     // Soft ring, repeated until the phone is answered.
     if (ph > 0.9 || ring.last === Math.floor(now / 3600) || ring.n >= RING_MAX) return;
@@ -161,8 +161,8 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
     if (st.s > 0) {
       pose(st.s);
       if (st.dir === 0 && !reduced) { const k = (now - st.settle) / 1000; holder.position.y += 0.007 * Math.exp(-k * 9) * Math.abs(Math.sin(k * 22)); }
-    } else if (st.mode === "ringing" && !reduced) {
-      const w = 1, f = now * 0.062;   // shakes all the time until the phone is picked up
+    } else if (st.mode === "ringing") {
+      const w = reduced ? 0.5 : 1, f = now * 0.062;   // shakes all the time until the phone is picked up
       holder.position.set(c.x + w * 0.0045 * Math.sin(f * 1.9), c.y + w * (0.0035 * Math.abs(Math.sin(f)) + 0.0015 * Math.abs(Math.sin(f * 2.7))), c.z + w * 0.0025 * Math.sin(f * 1.3));
       holder.rotation.set(w * 0.035 * Math.sin(f * 1.6), w * 0.06 * Math.sin(f * 1.1), w * 0.075 * Math.sin(f * 1.9));
       ringTone(now);
