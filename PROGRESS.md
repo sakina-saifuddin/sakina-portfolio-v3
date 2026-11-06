@@ -139,3 +139,7 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - Coffee surface (~1600 flat triangles) is cut from `Room_Desk` at runtime and drawn as its own disc that sinks and narrows with the cup. Hover hint: "CLICK TO TAKE A SIP OF COFFEE". Invisible `MugHit` cylinder is picked before the notepad fallback.
 - Verified (local software-render Playwright): coffee disc found, 6 sips move the level 0.8081 → 0.7405, no console errors, crops show the level dropping.
 - NOT verified: sip sound (no audio in cloud), tween smoothness, real hover/click on a phone, whether the coffee colour darkening looks right (it looked darker than the original after the first sips).
+
+## 2026-11-06 — Louder sip (main-pad.js?v=124, sfx.js?v=7)
+- Sip sound rebuilt much louder (long wet slurp, bubbles, big gulp). While it plays, the CRT video volume ducks to 12% for 1.9 s so the sip is clearly heard, then returns to the previous level.
+- Verified: syntax, page loads, sips still run, no console errors. NOT verified: actual loudness (no audio in cloud).

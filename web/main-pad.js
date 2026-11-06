@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=6";
+import {createSfx} from "./sfx.js?v=7";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -546,7 +546,7 @@ function sipMug(){
   if(mug.left<=0){sfx.sip(0);nudge("THE MUG IS EMPTY · RELOAD THE PAGE FOR A REFILL");return}
   mug.left--;
   mug.goal=MUG.floor+MUG.film+(MUG.top-MUG.floor-MUG.film)*mug.left/MUG.sips;
-  sfx.sip(1);
+  sfx.sip(1);crtVideo.duck(1900);
   nudge(mug.left>0?"AHH. "+mug.left+(mug.left===1?" SIP":" SIPS")+" LEFT":"THAT WAS THE LAST SIP");
 }
 
@@ -1300,6 +1300,7 @@ const crtVideo=(()=>{
   const api={onEnd:null,get paused(){return v.paused},get userMuted(){return userMute},get playing(){return cur>=0&&want>0},get active(){return vidMat.uniforms.uK.value>0.01||vidMat.uniforms.uNs.value>0.01}};
   v.addEventListener("ended",()=>{const done=cur;want=0;burst=1;api.onEnd?.(done)});
   let userMute=false;
+  const dk={t:0,base:1};
   const muted=()=>soundBtn.getAttribute("aria-pressed")!=="true"||onComputer()||userMute||phoneQuiet;
   Object.assign(api,{
     play(i,go=true){
@@ -1319,6 +1320,7 @@ const crtVideo=(()=>{
     away(on){away=on;if(on){if(started)v.pause()}else if(cur>=0&&want&&started&&v.paused&&!held&&!userPaused)v.play().catch(()=>{})},
     restart(){if(cur<0||!started)return false;v.currentTime=0;if(v.paused)v.play().catch(()=>{});return true},
     toggleMute(){userMute=!userMute;return userMute},
+    duck(ms){if(!dk.t)dk.base=v.volume;v.volume=Math.min(dk.base,0.12);clearTimeout(dk.t);dk.t=setTimeout(()=>{v.volume=dk.base;dk.t=0},ms)},
     cycleVolume(){v.volume=v.volume>0.8?0.6:v.volume>0.5?0.3:1;return v.volume},
     hold(on){held=on;if(on)v.pause();else if(cur>=0&&want&&started&&v.paused&&!away)v.play().catch(()=>{})},
     step(now){

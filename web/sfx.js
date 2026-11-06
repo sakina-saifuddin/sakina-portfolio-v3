@@ -95,12 +95,14 @@ export function createSfx({ enabled }) {
     // a sip of coffee: a soft slurp, a few bubbles, a gulp and a small "ahh". sip(0) is the dry sound of an empty mug.
     sip(level = 1) {
       if (!ready()) return; const t = ctx.currentTime + 0.02;
-      if (level <= 0) { hiss(t, 0.3, 0.07, "bandpass", 1900, 900, 3); tone(t + 0.18, 0.08, "sine", 500, 320, 0.03); return; }
-      hiss(t, 0.5, 0.11, "bandpass", 700, 2300, 3.5);
-      hiss(t + 0.05, 0.4, 0.035, "highpass", 4500, 3000);
-      for (let i = 0; i < 4; i++) tone(t + 0.1 + i * 0.09 + Math.random() * 0.03, 0.07, "sine", 520 + Math.random() * 380, 260, 0.03);
-      tone(t + 0.62, 0.15, "sine", 190, 90, 0.2); tone(t + 0.8, 0.1, "sine", 160, 85, 0.1);
-      hiss(t + 0.95, 0.4, 0.04, "lowpass", 900, 350);
+      if (level <= 0) { hiss(t, 0.35, 0.3, "bandpass", 1900, 900, 3); tone(t + 0.2, 0.1, "sine", 500, 320, 0.15); return; }
+      // loud, so it is heard over the CRT video: a long wet slurp that rises in pitch, bubbles, a big gulp and an "ahh"
+      hiss(t, 0.7, 0.6, "bandpass", 500, 3200, 4.5);
+      hiss(t + 0.05, 0.6, 0.25, "highpass", 4000, 2500);
+      hiss(t + 0.2, 0.4, 0.3, "bandpass", 1500, 2600, 6);
+      for (let i = 0; i < 6; i++) tone(t + 0.12 + i * 0.1 + Math.random() * 0.03, 0.09, "sine", 500 + Math.random() * 500, 240, 0.2);
+      tone(t + 0.85, 0.2, "sine", 200, 80, 0.9); tone(t + 1.05, 0.14, "sine", 170, 75, 0.5);
+      hiss(t + 1.2, 0.5, 0.2, "lowpass", 1000, 350);
     },
     // one tick per call, quieter the farther the camera is from the clock
     tick(dist = 1.5) {
