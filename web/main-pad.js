@@ -1004,6 +1004,23 @@ function resize(){
 }
 addEventListener("resize",resize);resize();
 
+// The lamp shadow maps (2 point lights x 6 cube faces over the whole room) used to be redrawn on every frame. The shadows only change
+// when a caster moves (tape, phone handset, pencil) or its geometry/visibility changes, so they are redrawn only then. Output is identical.
+renderer.shadowMap.autoUpdate=false;
+const shCasters=[];let shCastT=-1e9,shSig=NaN,shWarm=0;
+function shadowSync(now){
+  if(now-shCastT>500){shCastT=now;shCasters.length=0;scene.traverse(o=>{if(o.isMesh&&o.castShadow)shCasters.push(o)})}
+  let sig=shCasters.length;
+  for(let i=0;i<shCasters.length;i++){
+    const o=shCasters[i];o.updateWorldMatrix(true,false);
+    const e=o.matrixWorld.elements;let h=o.visible?1:0;
+    for(let k=0;k<16;k++)h+=e[k]*(k+1.37);
+    const g=o.geometry;if(g&&g.index)h+=g.index.count*1e-3;
+    sig+=h*(i+1);
+  }
+  if(sig!==shSig||shWarm<90){shSig=sig;shWarm++;renderer.shadowMap.needsUpdate=true}
+}
+
 let tintK=1;
 function frame(now){
   requestAnimationFrame(frame);
@@ -1022,6 +1039,7 @@ function frame(now){
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
+  shadowSync(now);
   composer.render();
 }
 

@@ -78,3 +78,10 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - 2026-11-01 — Round 5g (Sakina: blurry patches left/right outside the window, wants tilt over the CRT back, tracks visible): zoom 1.3x only covered +-10 deg of sideways swing, so side swings ran off the photo (blurred pano). Computed (S, anchor) vs window-ray yaw/elevation coverage for dolly 0.8-1.2:
   zoom 3.2x anchored at photo px 1700 (`web/sakina-view-r10.glb`) -> photo covers yaw -89..+52 deg, 34 deg below eye level; METRO fits a phone-width view. `/preview/` orbit limits now az -40..+70 deg (was -62..+70) and tilt >= 47 + 16 (az/70)^2 deg polar (home 81.8 deg: ~35 deg look-up range, was 9). e21 defaults 3.2 / 1700.
   Main page still the original window. Rule of thumb: bigger zoom = more orbit freedom but a tighter crop of the skyline; the final choice is Sakina's.
+
+- 2026-11-06 — **newversion: performance (lag) fix #1.** The two lamp point lights cast cube shadow maps (2 lights x 6 faces x 1536 px over the
+  ~875k-triangle room) and three.js redrew them on every frame. `web/main-pad.js` now sets `renderer.shadowMap.autoUpdate=false` and redraws them only when a
+  shadow caster moves or changes (tape, phone handset, pencil, geometry/visibility), plus the first 90 frames. No resolution, texture or shadow-quality change.
+  `main-pad.js?v=108`. Checked locally with reduced motion (frozen animation): walls, floor and room pixel-identical to before; only the steam wisp differs
+  (animated). The cloud has no GPU (software rendering, about 0.3 fps both ways), so the real fps gain is NOT measured yet: needs the laptop browser on the
+  `newversion` preview. Not merged to main.
