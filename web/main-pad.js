@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=11";
+import {createSfx} from "./sfx.js?v=12";
+import {createProps} from "./props.js?v=3";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -75,7 +76,7 @@ function setProgress(){
   $("loader-fill").style.width=p+"%";$("loader-text").textContent="LOADING "+p+"%";
 }
 // Per-tape click boxes generated from the Blender scene (pipeline/tools/tape_layout.py).
-let cityLife=null,gateEl,phone=null,phoneQuiet=false;const _gq=new THREE.Vector3();
+let cityLife=null,gateEl,phone=null,phoneQuiet=false,props=null;const _gq=new THREE.Vector3();
 const TAPE_PAL=[0xc9a227,0x1f8f73,0xa8281f,0x2a4a9a,0xd9631c,0x2f7d3a,0x1f2f63,0x3a8a4a,0x7a3b8c,0xd0541d,0xa02a3c,0x1c6f8a,0x8a7a2a];
 let TAPES=[];
 let deck=null,notebook=null,remote=null;const logoMeshes=[];
@@ -1077,6 +1078,8 @@ function buildViews(){
   };
   {const wt=TV0.clone().add(new THREE.Vector3(0.05,-0.055,0)),wd=0.88*Math.max(1,Math.tan(THREE.MathUtils.degToRad(FOV/2))*1.3/(tv*a));
    VIEWS.watch={target:wt,pos:wt.clone().add(new THREE.Vector3(-0.09,0.07,1).normalize().multiplyScalar(wd))}}
+  {const tt=new THREE.Vector3(1.16,0.835,-1.88);VIEWS.trophy={target:tt.clone(),pos:tt.clone().add(new THREE.Vector3(0.05,0.11,0.5))}}
+  {const rt=new THREE.Vector3(0.89,0.765,-1.87);VIEWS.recorder={target:rt.clone(),pos:rt.clone().add(new THREE.Vector3(0.03,0.15,0.3))}}
   if(phone){const pc=phone.frame.getCenter(new THREE.Vector3());VIEWS.phone={target:pc.clone().add(new THREE.Vector3(0,0,0.05)),pos:pc.clone().add(new THREE.Vector3(0,0,0.05)).add(new THREE.Vector3(0.02,0.85,0.55).normalize().multiplyScalar(0.8))}}
 }
 let shiftPx=0;
@@ -1086,6 +1089,7 @@ let tween=null;
 function flyTo(name){
   const v=VIEWS[name];if(!v)return;
   if(name!=="phone"){phone?.release();phoneQuiet=false}
+  if(name!=="recorder")props?.stopRadio();
   crtVideo.away(name==="notepad");
   const from={p:camera.position.clone(),t:(controls.lookTarget.lengthSq()?controls.lookTarget:controls.target).clone(),s:shiftPx};
   const dur=reduced?1:1300;
@@ -1102,7 +1106,7 @@ function stepTween(now){
   setShift(tween.from.s+((tween.to.shift||0)-tween.from.s)*e);
   camera.lookAt(controls.target);
   if(k>=1){
-    const wasHome=tween.name==="home";snap={name:tween.name,pos:tween.to.pos.clone()};tween=null;controls.enabled=true;controls.setFromCamera(wasHome);
+    const wasHome=tween.name==="home";snap={name:tween.name,pos:tween.to.pos.clone()};const arrivedAt=tween.name;tween=null;controls.enabled=true;controls.setFromCamera(wasHome);props?.arrived(arrivedAt);
   }
 }
 
@@ -1271,6 +1275,15 @@ function go(name){
     flyTo("phone");closePanel();phone?.answer()
   }
   else if(name==="pcpower")togglePc();
+  else if(name==="trophy"){
+    if(snap?.name==="trophy"&&!tween)props?.spinTrophy();
+    else{flyTo("trophy");closePanel();props?.armTrophy()}
+  }
+  else if(name==="recorder"){
+    if(props?.radioOn)props.stopRadio();
+    else if(snap?.name==="recorder"&&!tween)props?.key("rec");
+    else{flyTo("recorder");closePanel();props?.startRadio("rec",true)}
+  }
   else if(name==="clocks"){flyTo("clocks");closePanel()}
   else if(name==="chair"){flyTo(snap?.name==="chair"&&!tween?"home":"chair");closePanel()}
   else if(name==="window"){flyTo(snap?.name==="outside"&&!tween?"home":"outside");closePanel()}
@@ -1351,7 +1364,7 @@ const keysNote=(()=>{
     const col2=[["L","Desk lamp"],["F","Standing lamp"],["S","Sip coffee"],["U","Calculator"],["I","Spin pencils"],["P","TV on / off"]];
     const col3=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"],["V","Pick up remote"]];
     const col4=[["ESC","Put back"],["?","Guide"],["G","Credits"]];
-    const col5=[["O","Computer on / off"]];
+    const col5=[["O","Computer on / off"],["A","Trophy"],["D","Radio, live news"]];
     g.font="700 150px Caveat, cursive";g.save();g.translate(70,160);g.rotate(-0.025);g.fillText("GUIDE",0,0);
     g.lineWidth=8;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,32);g.quadraticCurveTo(240,18,470,34);g.stroke();g.restore();
     const row=(k,v,x,y)=>{g.font="700 46px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 46px Caveat, cursive";g.fillText(v,x+Math.max(w+14,96),y)};
@@ -1361,7 +1374,7 @@ const keysNote=(()=>{
     head("ON THE DESK",440,262);col2.forEach((r,i)=>row(r[0],r[1],440,316+i*50));
     head("ANYWHERE",440,640);col4.forEach((r,i)=>row(r[0],r[1],440,690+i*50));
     head("AT THE TV",810,262);col3.forEach((r,i)=>row(r[0],r[1],810,316+i*50));
-    head("ALSO",810,660);col5.forEach((r,i)=>row(r[0],r[1],810,710+i*50));
+    head("ALSO",810,620);col5.forEach((r,i)=>row(r[0],r[1],810,670+i*50));
     g.restore();
     const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
   };
@@ -1493,6 +1506,7 @@ addEventListener("keydown",e=>{
   else if(k==="p")go("power");
   else if(k==="o"&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go("pcpower");
   else if(k==="g"&&!term.active&&!padOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){cred.open?cred.hide():cred.show()}
+  else if((k==="a"||k==="d")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go(k==="a"?"trophy":"recorder");
   else if(k==="h")go("phone");
   else if(k==="v")go("remote");
   else if(k==="k")go("clocks");
@@ -1533,6 +1547,12 @@ function tipFor3d(h){
     case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
     case"pencils":return "CLICK TO SPIN THE PENCILS";
+    case"trophy":return snap?.name==="trophy"&&!tween?"CLICK TO SPIN THE CUP · KEY A":"CLICK TO LOOK AT THE TROPHY · KEY A";
+    case"rec":{
+      if(!(snap?.name==="recorder"&&!tween))return "CLICK TO LOOK AT THE RADIO RECORDER · KEY D";
+      const on=props?.radioOn;
+      return h.part==="rec"||h.part==="play"?(on?"THE RADIO IS ON · PRESS STOP TO TURN IT OFF":"CLICK TO TUNE IN THE LIVE NEWS RADIO"):h.part==="stop"?(on?"CLICK TO TURN THE RADIO OFF":"STOP"):h.part==="ff"?"NEXT STATION":h.part==="rew"?"PREVIOUS STATION":(on?"PRESS STOP, OR KEY D, TO TURN THE RADIO OFF":"PRESS THE RED BUTTON TO TUNE IN THE LIVE NEWS");
+    }
     case"lamp":return "CLICK TO TURN THE "+lamps[h.id].name+(lamps[h.id].on?" OFF":" ON");
     case"calc":return "CLICK TO USE THE CALCULATOR";
     case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
@@ -1555,7 +1575,7 @@ function tipFor3d(h){
     default:return "CLICK TO OPEN THE NOTEPAD";
   }
 }
-const VIEW_TIPS={chair:"CLICK TO LOOK AT THE CHAIR AND THE RIGHT WALL · KEY R",notepad:"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT · KEY B",outside:"CLICK TO LOOK OUT OF THE WINDOW · KEY W",clocks:"CLICK TO LOOK AT THE CLOCKS · KEY K",phone:"CLICK TO ANSWER THE PHONE · KEY H",tapes:"CLICK TO LOOK AT THE TAPES · KEY T",ibm:"CLICK TO USE THE COMPUTER · KEY C",pad:"CLICK TO LIFT THE WORK NOTES · KEY N",desk:"CLICK TO ZOOM IN ON THE TV · KEY Z",
+const VIEW_TIPS={trophy:"CLICK TO SPIN THE TROPHY · KEY A",recorder:"CLICK TO TUNE THE NEWS RADIO · KEY D",chair:"CLICK TO LOOK AT THE CHAIR AND THE RIGHT WALL · KEY R",notepad:"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT · KEY B",outside:"CLICK TO LOOK OUT OF THE WINDOW · KEY W",clocks:"CLICK TO LOOK AT THE CLOCKS · KEY K",phone:"CLICK TO ANSWER THE PHONE · KEY H",tapes:"CLICK TO LOOK AT THE TAPES · KEY T",ibm:"CLICK TO USE THE COMPUTER · KEY C",pad:"CLICK TO LIFT THE WORK NOTES · KEY N",desk:"CLICK TO ZOOM IN ON THE TV · KEY Z",
   power:()=>(tv.on?"CLICK TO TURN OFF THE TV":"CLICK TO TURN ON THE TV")+" · KEY P"};
 function tipFor(el){
   if(el.id==="pad-scrim")return "CLICK ANYWHERE TO PUT THE PAPER BACK DOWN";
@@ -1599,6 +1619,7 @@ function pick(ev){
   if(notebook)targets.push(...notebook.pickMeshes());
   if(mug.hit)targets.push(mug.hit);
   if(pencils.hit)targets.push(pencils.hit);
+  if(props)targets.push(...props.pickMeshes());
   targets.push(...lampHits);if(meshes.Room_Lamp)targets.push(meshes.Room_Lamp);
   if(calc.group&&!calcOpen())targets.push(calc.body,...calc.keys);
   if(phone)targets.push(...phone.pickMeshes());
@@ -1622,6 +1643,7 @@ function pick(ev){
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
   if(n==="MugHit")return {kind:"mug"};
   if(hit.object.userData.pencils)return {kind:"pencils"};
+  if(hit.object.userData.prop)return props.info(hit.object);
   if(hit.object.userData.lamp)return {kind:"lamp",id:hit.object.userData.lamp};
   if(n==="CalcBody"||n==="CalcKey")return {kind:"calc"};
   if(n==="Pad")return {kind:"pad"};
@@ -1679,6 +1701,8 @@ canvas.addEventListener("pointerup",ev=>{
   else if(hit.kind==="phone")phoneClick(hit.part);
   else if(hit.kind==="mug")sipMug();
   else if(hit.kind==="pencils")spinPencils();
+  else if(hit.kind==="trophy")go("trophy");
+  else if(hit.kind==="rec")recClick(hit.part);
   else if(hit.kind==="lamp")toggleLamp(hit.id);
   else if(hit.kind==="calc")openCalc();
   else go(hit.kind);
@@ -1782,7 +1806,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);stepPencils(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);stepPencils(now);props?.step(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:term.active?0.3:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
@@ -2292,6 +2316,12 @@ function stepPc(now){
   pcU.uOff.value=pc.off;
   if(pc.off<=0){pc.dir=0;pcScreen.visible=false}else if(pc.off>=1)pc.dir=0;
 }
+// The cassette recorder: the first click flies in to it; once there its keys work. A click on the red or PLAY key from afar also tunes the radio in (silent until the camera arrives).
+function recClick(part){
+  if(snap?.name==="recorder"&&!tween){if(part==="body"){nudge(props.radioOn?"PRESS STOP, OR KEY D, TO TURN THE RADIO OFF":"PRESS THE RED BUTTON TO TUNE IN THE LIVE NEWS")}else props.key(part);return}
+  flyTo("recorder");closePanel();
+  if(part==="rec"||part==="play")props.startRadio(part,true);
+}
 function phoneClick(part){
   if(!phone||phone.busy)return;
   const mo=phone.mode;
@@ -2341,6 +2371,7 @@ Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   try{setupPencils()}catch(e){console.warn("pencils failed",e)}
   try{keysNote.attach(meshes.Room_Desk)}catch(e){console.warn("sticky pad failed",e)}
   try{setupCalc()}catch(e){console.warn("calc failed",e)}
+  try{props=createProps({scene,meshes,reduced,sfx,say:nudge,soundOk:()=>soundBtn.getAttribute("aria-pressed")==="true"&&!onComputer()&&!phoneQuiet,onRadio:on=>crtVideo.away(on)});buildViews()}catch(e){console.warn("props failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}
   try{setupWind()}catch(e){console.warn("wind failed",e)}
   try{setupPlant()}catch(e){console.warn("plant failed",e)}

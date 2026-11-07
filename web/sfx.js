@@ -125,6 +125,27 @@ export function createSfx({ enabled }) {
         tone(at, 0.05, "triangle", 900 + Math.random() * 700, 520, p * 0.35, 3000);
       }
     },
+    // a cassette recorder key: a heavy mechanical clunk going down, a lighter click coming back up
+    recKey(down = true) {
+      if (!ready()) return; const t = ctx.currentTime + 0.01;
+      if (down) { click(t, 0.55); thump(t, 0.35); tone(t, 0.05, "square", 520, 260, 0.08, 1800); hiss(t + 0.03, 0.06, 0.16, "bandpass", 700, 400, 1); }
+      else { click(t, 0.35); tone(t, 0.04, "square", 700, 380, 0.06, 2000); }
+    },
+    // tuning between stations: a sweep of radio static with a few whistles, then it settles
+    tune(dur = 0.7) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      hiss(t, dur, 0.42, "bandpass", 600, 3600, 1.3); hiss(t + 0.05, dur * 0.9, 0.2, "highpass", 3000, 2000);
+      tone(t, dur * 0.8, "sine", 500, 1700, 0.06, 3000); tone(t + dur * 0.35, dur * 0.5, "sine", 2100, 700, 0.04, 3000);
+    },
+    // trophy: a small bright bell, three notes of a major chord ringing out
+    chime() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      [1568, 1976, 2349].forEach((f, i) => {
+        const at = t + i * 0.09;
+        tone(at, 1.4, "sine", f, f * 0.998, 0.11, 6000); tone(at, 0.6, "sine", f * 2.01, f * 2, 0.035, 8000);
+      });
+      hiss(t, 0.05, 0.12, "highpass", 4000, 3000);
+    },
     // a lamp switch: a firm mechanical click, a little lower and softer for off than for on
     lamp(on = true) {
       if (!ready()) return; const t = ctx.currentTime + 0.02;
