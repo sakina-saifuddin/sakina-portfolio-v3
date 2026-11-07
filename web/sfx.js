@@ -152,6 +152,26 @@ export function createSfx({ enabled }) {
       hiss(t, 0.7, 0.3, "bandpass", 380, 260, 1.2); hiss(t + 0.1, 0.5, 0.12, "lowpass", 900, 400);
       tone(t + 0.68, 0.12, "sine", 150, 70, 0.3); click(t + 0.68, 0.2);
     },
+    // a heavy wooden chair dragged over floorboards: a rough low rumble that skips, with a knock when it stops
+    drag() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      for (let i = 0; i < 9; i++) { const at = t + i * 0.1 + Math.random() * 0.03; hiss(at, 0.13, 0.34, "lowpass", 520 + Math.random() * 260, 240, 0.8); hiss(at, 0.09, 0.12, "bandpass", 1100, 700, 1.5); }
+      tone(t, 1.0, "sawtooth", 62, 48, 0.08, 220);
+      tone(t + 0.95, 0.14, "sine", 130, 55, 0.4); click(t + 0.95, 0.25);
+    },
+    // a drawer opening or closing: wood groaning (a wavering resonant note) over scraping friction, ending in a knock
+    creak(open = true) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02, d = open ? 1.3 : 0.8;
+      const o = ctx.createOscillator(); o.type = "sawtooth";
+      o.frequency.setValueAtTime(open ? 190 : 150, t); o.frequency.linearRampToValueAtTime(open ? 96 : 130, t + d * 0.45); o.frequency.linearRampToValueAtTime(open ? 150 : 82, t + d);
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 10;
+      bp.frequency.setValueAtTime(650, t); bp.frequency.linearRampToValueAtTime(1500, t + d * 0.55); bp.frequency.linearRampToValueAtTime(850, t + d);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + 0.14); g.gain.setValueAtTime(0.2, t + d * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 17; const lg = ctx.createGain(); lg.gain.value = 0.07; lfo.connect(lg).connect(g.gain);
+      o.connect(bp).connect(g).connect(dest || out); o.start(t); o.stop(t + d + 0.05); lfo.start(t); lfo.stop(t + d + 0.05);
+      hiss(t, d, 0.2, "bandpass", 1300, 500, 1.2); hiss(t + 0.05, d * 0.9, 0.1, "lowpass", 700, 300, 0.7);
+      tone(t + d, 0.12, "sine", open ? 120 : 160, 55, 0.35); click(t + d, 0.22);
+    },
     // leaves rustling: soft bursts of filtered noise
     rustle() {
       if (!ready()) return; const t = ctx.currentTime + 0.02;

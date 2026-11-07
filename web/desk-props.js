@@ -8,7 +8,7 @@ import { pieces, makeCarve } from "./props.js?v=4";
 // Positions are the ones in the baked room.
 
 const PLAYER = { x: -1.0, y: 0.72, z: -1.88 };
-const CHAIR = { x: -1.04, y: 0, z: -1.20, yaw: 21.9 * Math.PI / 180, tuck: 0.24 };
+const CHAIR = { x: -0.94, y: 0, z: -1.36, yaw: 21.9 * Math.PI / 180, pull: 0.34, turn: 0.3 };
 const DRAWER = { x: 0.2, y: 0.605, z: -1.805, out: 0.42 };
 const smooth = x => x * x * (3 - 2 * x);
 const clamp01 = x => Math.min(1, Math.max(0, x));
@@ -92,6 +92,39 @@ function placeholder(c) {
   return cv;
 }
 
+// Walnut-like grain drawn on a canvas: long streaks that wander, a few pores, plank seams, and darker edges where boards meet (ambient occlusion).
+function woodTexture(W, H, o) {
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d");
+  let sd = o.seed * 9301 + 49297; const rnd = () => ((sd = (sd * 9301 + 49297) % 233280) / 233280);
+  g.fillStyle = o.base; g.fillRect(0, 0, W, H);
+  const ph = H / o.planks;
+  for (let pl = 0; pl < o.planks; pl++) {
+    const y0 = pl * ph, tone = (rnd() - 0.5) * 0.14;
+    g.fillStyle = tone > 0 ? "rgba(255,200,140," + tone + ")" : "rgba(30,12,2," + (-tone) + ")"; g.fillRect(0, y0, W, ph);
+    for (let i = 0; i < ph * 0.9; i++) {
+      const y = y0 + rnd() * ph, a = 0.05 + rnd() * 0.22, amp = 1 + rnd() * 5, f = 0.004 + rnd() * 0.01, ph0 = rnd() * 6.28;
+      g.strokeStyle = (rnd() > 0.35 ? "rgba(40,18,4," : "rgba(210,150,90,") + a + ")"; g.lineWidth = 0.6 + rnd() * 1.6;
+      g.beginPath(); for (let x = 0; x <= W; x += 16) { const yy = y + Math.sin(x * f + ph0) * amp + Math.sin(x * f * 3.1 + ph0) * amp * 0.3; x ? g.lineTo(x, yy) : g.moveTo(x, yy); } g.stroke();
+    }
+    for (let i = 0; i < 40; i++) { g.fillStyle = "rgba(30,12,2," + (0.15 + rnd() * 0.3) + ")"; g.fillRect(rnd() * W, y0 + rnd() * ph, 4 + rnd() * 14, 1); }
+    if (pl) { g.fillStyle = "rgba(15,6,0,.7)"; g.fillRect(0, y0 - 1, W, 2.5); }
+  }
+  const edge = (x0, y0, x1, y1, a, w) => { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, "rgba(15,6,0," + a + ")"); gr.addColorStop(1, "rgba(15,6,0,0)"); g.fillStyle = gr; return gr; };
+  if (o.ao) { const e = o.ao;
+    let gr = edge(0, 0, W * e, 0, 0.7); g.fillStyle = gr; g.fillRect(0, 0, W * e, H);
+    gr = edge(W, 0, W * (1 - e), 0, 0.7); g.fillStyle = gr; g.fillRect(W * (1 - e), 0, W * e, H);
+    gr = edge(0, 0, 0, H * e, 0.75); g.fillStyle = gr; g.fillRect(0, 0, W, H * e);
+    gr = edge(0, H, 0, H * (1 - e), 0.55); g.fillStyle = gr; g.fillRect(0, H * (1 - e), W, H * e); }
+  if (o.bottomAo) { const gr = g.createLinearGradient(0, H, 0, H * 0.55); gr.addColorStop(0, "rgba(15,6,0," + o.bottomAo + ")"); gr.addColorStop(1, "rgba(15,6,0,0)"); g.fillStyle = gr; g.fillRect(0, H * 0.55, W, H * 0.45); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+// a soft dark patch for under a sheet of paper
+function shadowTexture() {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64; const g = cv.getContext("2d");
+  const r = g.createRadialGradient(32, 32, 6, 32, 32, 32); r.addColorStop(0, "rgba(0,0,0,.75)"); r.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(cv);
+}
+
 export function createDeskProps({ scene, meshes, reduced, sfx, soundOk, loud, say, lampDim, onMusic }) {
   const carve = makeCarve(scene), out = { player: null, chair: null, drawer: null, certs: [] };
   const hitMat = () => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
@@ -110,7 +143,7 @@ export function createDeskProps({ scene, meshes, reduced, sfx, soundOk, loud, sa
     for (const [r, b] of pc.boxes) {
       b.getSize(V);
       if (b.min.x > -1.085 && b.max.x < -0.915 && b.min.y > 0.7195 && b.max.y < 0.76 && b.min.z > -1.965 && b.max.z < -1.795 && V.x < 0.16 && V.y < 0.0025 && V.x > 0.08) cls.set(r, "disc");
-      else if (b.min.x > -1.3 && b.max.x < -0.7 && b.min.z > -1.45 && b.max.z < -0.95 && b.min.y > -0.02 && b.max.y < 1.0 && V.x < 0.5) cls.set(r, "chair");
+      else if (b.min.x > -1.3 && b.max.x < -0.62 && b.min.z > -1.72 && b.max.z < -0.95 && b.min.y > -0.02 && b.max.y < 1.0 && V.x < 0.7) cls.set(r, "chair");
       else if (b.min.x > -0.14 && b.max.x < 0.54 && b.min.y > 0.545 && b.max.y < 0.665 && b.min.z > -1.83 && b.max.z < -1.79 && V.x < 0.7) cls.set(r, "drawer");
     }
     const T = { disc: [], chair: [], drawer: [] }, keep = [];
@@ -153,11 +186,11 @@ export function createDeskProps({ scene, meshes, reduced, sfx, soundOk, loud, sa
   function setupChair(src, tris) {
     const piv = new THREE.Vector3(CHAIR.x, CHAIR.y, CHAIR.z), c = carve(src, tris, piv, "WoodChair");
     c.mesh.userData.prop = "chair";
-    out.chair = { holder: c.holder, mesh: c.mesh, piv, k: 0, goal: 0, last: 0, tucked: false, dir: new THREE.Vector3(Math.sin(CHAIR.yaw) * 1, 0, -Math.cos(CHAIR.yaw)) };
+    out.chair = { holder: c.holder, mesh: c.mesh, piv, k: 0, goal: 0, last: 0, tucked: false, dir: new THREE.Vector3(-Math.sin(CHAIR.yaw), 0, Math.cos(CHAIR.yaw)) };   // away from the desk
   }
   function toggleChair() {
     const C = out.chair; if (!C) return;
-    C.goal = C.goal ? 0 : 1; sfx.scrape();
+    C.goal = C.goal ? 0 : 1; sfx.drag();
     if (reduced) { C.k = C.goal; }
   }
 
@@ -166,33 +199,40 @@ export function createDeskProps({ scene, meshes, reduced, sfx, soundOk, loud, sa
     const piv = new THREE.Vector3(DRAWER.x, DRAWER.y, DRAWER.z), c = carve(src, tris, piv, "DeskDrawer");
     c.mesh.userData.prop = "drawer";
     const H = c.holder, tray = new THREE.Group(); H.add(tray); tray.visible = false;
-    const wood = new THREE.MeshBasicMaterial({ color: 0x3b2413 }), felt = new THREE.MeshBasicMaterial({ color: 0x1f3a2c });
-    lampDim(wood, "Drawer"); lampDim(felt, "Drawer");
+    const floorTex = woodTexture(1024, 1024, { base: "#9a6a3a", dark: "#5a3516", seed: 3, ao: 0.16, planks: 3 });
+    const wallTex = woodTexture(1024, 256, { base: "#835028", dark: "#4a2a10", seed: 7, ao: 0.0, planks: 1, bottomAo: 0.5 });
+    const wood = new THREE.MeshBasicMaterial({ map: wallTex }), floor = new THREE.MeshBasicMaterial({ map: floorTex });
+    lampDim(wood, "Drawer"); lampDim(floor, "Drawer");
     const box = (w, h, d, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); tray.add(b); return b; };
-    box(0.6, 0.008, 0.5, 0, -0.043, -0.27, wood);
-    box(0.008, 0.085, 0.5, -0.296, -0.0025, -0.27, wood); box(0.008, 0.085, 0.5, 0.296, -0.0025, -0.27, wood);
-    box(0.6, 0.085, 0.008, 0, -0.0025, -0.516, wood);
-    const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.584, 0.484), felt); fl.rotation.x = -Math.PI / 2; fl.position.set(0, -0.0388, -0.27); tray.add(fl);
+    // bottom board (grain across), two sides, back board, and the inside face of the front, as a real drawer is built
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.592, 0.492), floor); fl.rotation.x = -Math.PI / 2; fl.position.set(0, -0.0388, -0.27); tray.add(fl);
+    box(0.62, 0.008, 0.52, 0, -0.043, -0.27, wood);
+    box(0.012, 0.085, 0.5, -0.296, -0.0025, -0.27, wood); box(0.012, 0.085, 0.5, 0.296, -0.0025, -0.27, wood);
+    box(0.6, 0.085, 0.012, 0, -0.0025, -0.516, wood);
+    const fb = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.083), wood); fb.rotation.y = Math.PI; fb.position.set(0, -0.0025, -0.0205); tray.add(fb);
     out.drawer = { holder: H, tray, k: 0, goal: 0, last: 0, mesh: c.mesh };
-    fetch("certificates/certs.json?v=2").then(r => r.json()).then(list => buildCerts(list, tray)).catch(e => console.warn("certificates list failed", e));
+    fetch("certificates/certs.json?v=3").then(r => r.json()).then(list => buildCerts(list, tray)).catch(e => console.warn("certificates list failed", e));
   }
   function buildCerts(list, tray) {
-    const SW = 0.15, SH = 0.106, cols = 3, dx = 0.185, rows = [-0.125, -0.255];
+    const MAXW = 0.16, MAXH = 0.112, cols = 3, dx = 0.19, rows = [-0.125, -0.26], shadow = shadowTexture();
     list.slice(0, 6).forEach((c, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
+      const col = i % cols, row = Math.floor(i / cols), asp = c.aspect || 1.414;
+      const sw = Math.min(MAXW, MAXH * asp), sh = sw / asp;
       const cvs = placeholder(c), tex = new THREE.CanvasTexture(cvs); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xe8e0d0 }); lampDim(mat, "Drawer");
-      const grp = new THREE.Group(); grp.position.set((col - 1) * dx + (row ? 0.02 : -0.01), -0.0384 + 0.0004 * i, rows[row]); grp.rotation.y = (((i * 37) % 11) - 5) * 0.012;
-      const pl = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), mat); pl.rotation.x = -Math.PI / 2; pl.userData.prop = "cert"; pl.userData.idx = i; grp.add(pl); tray.add(grp);
+      const grp = new THREE.Group(); grp.position.set((col - 1) * dx + (row ? 0.025 : -0.012), -0.0384 + 0.0004 * i, rows[row]); grp.rotation.y = (((i * 37) % 11) - 5) * 0.014;
+      const sd = new THREE.Mesh(new THREE.PlaneGeometry(sw * 1.18, sh * 1.22), new THREE.MeshBasicMaterial({ map: shadow, transparent: true, opacity: 0.55, depthWrite: false }));
+      sd.rotation.x = -Math.PI / 2; sd.position.y = -0.0003; sd.renderOrder = 1; grp.add(sd);
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), mat); pl.rotation.x = -Math.PI / 2; pl.userData.prop = "cert"; pl.userData.idx = i; pl.renderOrder = 2; grp.add(pl); tray.add(grp);
       const e = { c, mesh: pl, mat, src: null, canvas: cvs };
       out.certs.push(e);
-      if (c.file) new THREE.TextureLoader().load("certificates/" + c.file + "?v=2", t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; mat.map = t; mat.needsUpdate = true; e.src = "certificates/" + c.file + "?v=2"; }, undefined, () => {});
+      if (c.file) new THREE.TextureLoader().load("certificates/" + c.file + "?v=3", t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; mat.map = t; mat.color.set(0xf2ede2); mat.needsUpdate = true; e.src = "certificates/" + c.file + "?v=3"; }, undefined, () => {});
     });
   }
   function setDrawer(open) {
     const D = out.drawer; if (!D) return;
     if ((D.goal === 1) === open) return;
-    D.goal = open ? 1 : 0; sfx.scrape();
+    D.goal = open ? 1 : 0; sfx.creak(open);
     if (reduced) D.k = D.goal;
   }
 
@@ -235,10 +275,10 @@ export function createDeskProps({ scene, meshes, reduced, sfx, soundOk, loud, sa
       const dt = Math.min(0.1, (now - (C.last || now)) / 1000); C.last = now;
       const d = C.goal - C.k;
       if (d !== 0) { C.k = Math.abs(d) < 1e-3 ? C.goal : C.k + Math.sign(d) * Math.min(Math.abs(d), dt / 1.0); }
-      const e = smooth(C.k), wob = reduced ? 0 : Math.sin(Math.PI * C.k) * 0.07;
-      C.holder.position.copy(C.piv).addScaledVector(C.dir, CHAIR.tuck * e);
-      C.holder.position.y += reduced ? 0 : Math.abs(Math.sin(Math.PI * C.k * 3)) * 0.004 * Math.sin(Math.PI * C.k);
-      C.holder.rotation.y = wob * (C.goal ? 1 : -1);
+      const e = smooth(C.k), jit = reduced ? 0 : Math.sin(C.k * 60) * 0.004 * Math.sin(Math.PI * C.k);   // the legs skip over the floorboards
+      C.holder.position.copy(C.piv).addScaledVector(C.dir, CHAIR.pull * e);
+      C.holder.position.y += reduced ? 0 : Math.abs(jit);
+      C.holder.rotation.y = CHAIR.turn * e + jit * 2;
     }
     const D = out.drawer;
     if (D) {

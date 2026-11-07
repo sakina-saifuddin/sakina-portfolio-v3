@@ -273,3 +273,9 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - **Certificates are placeholders.** The list is `web/certificates/certs.json` (NVIDIA x2, Ikra University, CodeRED Orion Best Pitch/Demo: names only, no real files). The cloud cannot reach LinkedIn and the laptop was not connected, so no real certificate image was fetched. To use real ones: add `"file": "name.jpg"` to the entry and put the image in `web/certificates/` (see its README).
 - Guide (HTML and sticky pad) has `Q X J Y A D`; the sticky-pad layout was rearranged into four columns.
 - Tested headless: pieces found and cut out (disc 124, chair 6416, drawer 2896 triangles), clicks pick player / chair / drawer / plant / certificates, drawer opens and closes on leaving, music starts, chair moves, screenshots of drawer and player. Not tested: how the music sounds, the published site.
+
+## Round: real certificates, wood drawer interior, whole-chair drag
+- Drawer: 6 real certificates (web/certificates/*.jpg, certs.json with aspect/date) laid on a procedural wood-grain interior (floor, sides, back, inside of front) with soft contact shadows; click a sheet to read it.
+- Sounds (Web Audio, sfx.js v14): `creak(open)` for the drawer, `drag()` for the chair. Synthesised, NOT yet heard by ear.
+- Chair: classification box widened (x[-1.30,-0.62], z[-1.72,-0.95]) so seat, legs, stretchers and back move together; it is pulled out and turned slightly, and pushed back on the next click.
+- Tested headless (SwiftShader): drawer view and pulled-out chair screenshots, no console errors. Published site not verified; faint baked chair shadow stays on the floor.
