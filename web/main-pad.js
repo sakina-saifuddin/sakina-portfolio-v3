@@ -1533,7 +1533,7 @@ addEventListener("keydown",e=>{
 });
 
 class QuietAmbience extends Ambience{
-  init(){if(this.ctx)return;super.init();const t=this.ctx.createGain();t.gain.value=0.13;this.rainGain.disconnect();this.rainGain.connect(t);t.connect(this.master)}
+  init(){if(this.ctx)return;super.init();const t=this.ctx.createGain();t.gain.value=0.26;this.rainGain.disconnect();this.rainGain.connect(t);t.connect(this.master)}
 }
 const audio=new QuietAmbience();
 const sfx=createSfx({enabled:()=>audio.rainOn});
