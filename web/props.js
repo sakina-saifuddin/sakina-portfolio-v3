@@ -19,7 +19,7 @@ export const STATIONS = [
 ];
 
 // Connected pieces of a merged mesh. Vertices are duplicated along UV seams, so pieces are found by position (0.5 mm grid), not by index.
-function pieces(src) {
+export function pieces(src) {
   src.updateWorldMatrix(true, false);
   const M = src.matrixWorld, g = src.geometry, P = g.attributes.position, ia = g.index.array, n = P.count;
   const key = new Map(), vid = new Int32Array(n), v = new THREE.Vector3();
@@ -41,13 +41,9 @@ function pieces(src) {
   return { ia, root: i => find(vid[i]), boxes };
 }
 
-export function createProps({ scene, meshes, reduced, sfx, soundOk, onRadio, say }) {
-  const out = { trophy: null, rec: null };
-  const hitMat = () => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
-  const clamp01 = x => Math.min(1, Math.max(0, x));
-
   // A set of triangles of `src`, as its own mesh in a holder placed at `pivot` (so the holder can turn or slide). Looks identical until it moves.
-  function carve(src, tris, pivot, name) {
+export function makeCarve(scene) {
+  return function carve(src, tris, pivot, name) {
     const g = src.geometry, gi = new THREE.BufferGeometry();
     for (const n of Object.keys(g.attributes)) gi.setAttribute(n, g.attributes[n]);
     gi.setIndex(new THREE.BufferAttribute(new Uint32Array(tris), 1));
@@ -58,6 +54,14 @@ export function createProps({ scene, meshes, reduced, sfx, soundOk, onRadio, say
     const holder = new THREE.Group(); holder.position.copy(pivot); holder.add(mesh); scene.add(holder);
     return { mesh, holder };
   }
+}
+
+export function createProps({ scene, meshes, reduced, sfx, soundOk, onRadio, say }) {
+  const out = { trophy: null, rec: null };
+  const hitMat = () => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
+  const clamp01 = x => Math.min(1, Math.max(0, x));
+
+  const carve = makeCarve(scene);
 
   // ---------------------------------------------------------------- trophy
   function setupTrophy() {

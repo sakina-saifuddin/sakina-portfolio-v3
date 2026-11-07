@@ -146,6 +146,17 @@ export function createSfx({ enabled }) {
       });
       hiss(t, 0.05, 0.12, "highpass", 4000, 3000);
     },
+    // a wooden chair or drawer sliding: a low scrape that swells and fades, with a soft knock at the end
+    scrape() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      hiss(t, 0.7, 0.3, "bandpass", 380, 260, 1.2); hiss(t + 0.1, 0.5, 0.12, "lowpass", 900, 400);
+      tone(t + 0.68, 0.12, "sine", 150, 70, 0.3); click(t + 0.68, 0.2);
+    },
+    // leaves rustling: soft bursts of filtered noise
+    rustle() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      for (let i = 0; i < 9; i++) hiss(t + i * 0.14 + Math.random() * 0.08, 0.16, 0.22 * Math.pow(0.86, i), "bandpass", 3200 + Math.random() * 2200, 2400, 0.8);
+    },
     // a lamp switch: a firm mechanical click, a little lower and softer for off than for on
     lamp(on = true) {
       if (!ready()) return; const t = ctx.currentTime + 0.02;

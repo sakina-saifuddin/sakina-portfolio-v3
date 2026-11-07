@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=12";
-import {createProps} from "./props.js?v=3";
+import {createSfx} from "./sfx.js?v=13";
+import {createProps} from "./props.js?v=4";
+import {createDeskProps} from "./desk-props.js?v=2";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -76,7 +77,7 @@ function setProgress(){
   $("loader-fill").style.width=p+"%";$("loader-text").textContent="LOADING "+p+"%";
 }
 // Per-tape click boxes generated from the Blender scene (pipeline/tools/tape_layout.py).
-let cityLife=null,gateEl,phone=null,phoneQuiet=false,props=null;const _gq=new THREE.Vector3();
+let cityLife=null,gateEl,phone=null,phoneQuiet=false,props=null,deskProps=null;const _gq=new THREE.Vector3();
 const TAPE_PAL=[0xc9a227,0x1f8f73,0xa8281f,0x2a4a9a,0xd9631c,0x2f7d3a,0x1f2f63,0x3a8a4a,0x7a3b8c,0xd0541d,0xa02a3c,0x1c6f8a,0x8a7a2a];
 let TAPES=[];
 let deck=null,notebook=null,remote=null;const logoMeshes=[];
@@ -1080,6 +1081,8 @@ function buildViews(){
    VIEWS.watch={target:wt,pos:wt.clone().add(new THREE.Vector3(-0.09,0.07,1).normalize().multiplyScalar(wd))}}
   {const tt=new THREE.Vector3(1.16,0.835,-1.88);VIEWS.trophy={target:tt.clone(),pos:tt.clone().add(new THREE.Vector3(0.05,0.11,0.5))}}
   {const rt=new THREE.Vector3(0.89,0.765,-1.87);VIEWS.recorder={target:rt.clone(),pos:rt.clone().add(new THREE.Vector3(0.03,0.15,0.3))}}
+  {const pt=new THREE.Vector3(-1.0,0.75,-1.88);VIEWS.player={target:pt.clone(),pos:pt.clone().add(new THREE.Vector3(0.2,0.45,0.58))}}
+  {const dt=new THREE.Vector3(0.2,0.58,-1.55);VIEWS.drawer={target:dt.clone(),pos:dt.clone().add(new THREE.Vector3(0,0.82,0.34))}}
   if(phone){const pc=phone.frame.getCenter(new THREE.Vector3());VIEWS.phone={target:pc.clone().add(new THREE.Vector3(0,0,0.05)),pos:pc.clone().add(new THREE.Vector3(0,0,0.05)).add(new THREE.Vector3(0.02,0.85,0.55).normalize().multiplyScalar(0.8))}}
 }
 let shiftPx=0;
@@ -1090,6 +1093,7 @@ function flyTo(name){
   const v=VIEWS[name];if(!v)return;
   if(name!=="phone"){phone?.release();phoneQuiet=false}
   if(name!=="recorder")props?.stopRadio();
+  if(name!=="drawer"){deskProps?.setDrawer(false);deskProps?.hideCert()}
   crtVideo.away(name==="notepad");
   const from={p:camera.position.clone(),t:(controls.lookTarget.lengthSq()?controls.lookTarget:controls.target).clone(),s:shiftPx};
   const dur=reduced?1:1300;
@@ -1284,6 +1288,16 @@ function go(name){
     else if(snap?.name==="recorder"&&!tween)props?.key("rec");
     else{flyTo("recorder");closePanel();props?.startRadio("rec",true)}
   }
+  else if(name==="player"){
+    if(snap?.name==="player"&&!tween)deskProps?.togglePlayer();
+    else{flyTo("player");closePanel();deskProps?.togglePlayer(true)}
+  }
+  else if(name==="deskchair")deskProps?.toggleChair();
+  else if(name==="plant")shakePlant();
+  else if(name==="drawer"){
+    if(snap?.name==="drawer"&&!tween){flyTo("home");closePanel()}
+    else{flyTo("drawer");closePanel();deskProps?.setDrawer(true)}
+  }
   else if(name==="clocks"){flyTo("clocks");closePanel()}
   else if(name==="chair"){flyTo(snap?.name==="chair"&&!tween?"home":"chair");closePanel()}
   else if(name==="window"){flyTo(snap?.name==="outside"&&!tween?"home":"outside");closePanel()}
@@ -1360,21 +1374,21 @@ const keysNote=(()=>{
   const inkCanvas=()=>{
     const W=1180,H=810,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
     g.fillStyle="#2b2a33";g.textBaseline="alphabetic";
-    const col1=[["T","Tapes"],["C","Use computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair"]];
-    const col2=[["L","Desk lamp"],["F","Standing lamp"],["S","Sip coffee"],["U","Calculator"],["I","Spin pencils"],["P","TV on / off"]];
+    const col1=[["T","Tapes"],["C","Computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair wall"]];
+    const col2=[["L","Desk lamp"],["F","Standing lamp"],["S","Sip coffee"],["U","Calculator"],["I","Spin pencils"],["P","TV on / off"],["O","Computer on / off"],["Q","Music player"],["X","Push chair"],["J","Shake plant"]];
     const col3=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"],["V","Pick up remote"]];
     const col4=[["ESC","Put back"],["?","Guide"],["G","Credits"]];
-    const col5=[["O","Computer on / off"],["A","Trophy"],["D","Radio, live news"]];
+    const col5=[["A","Trophy"],["D","Radio news"],["Y","Drawer: certificates"]];
     g.font="700 150px Caveat, cursive";g.save();g.translate(70,160);g.rotate(-0.025);g.fillText("GUIDE",0,0);
     g.lineWidth=8;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,32);g.quadraticCurveTo(240,18,470,34);g.stroke();g.restore();
-    const row=(k,v,x,y)=>{g.font="700 46px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 46px Caveat, cursive";g.fillText(v,x+Math.max(w+14,96),y)};
-    const head=(t,x,y)=>{g.font="700 40px Caveat, cursive";g.fillStyle="#7a2b14";g.fillText(t,x,y);g.fillStyle="#2b2a33"};
+    const row=(k,v,x,y)=>{g.font="700 40px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 40px Caveat, cursive";g.fillText(v,x+Math.max(w+12,80),y)};
+    const head=(t,x,y)=>{g.font="700 36px Caveat, cursive";g.fillStyle="#7a2b14";g.fillText(t,x,y);g.fillStyle="#2b2a33"};
     g.save();g.rotate(0.012);
     head("GO TO",70,262);col1.forEach((r,i)=>row(r[0],r[1],70,316+i*50));
-    head("ON THE DESK",440,262);col2.forEach((r,i)=>row(r[0],r[1],440,316+i*50));
-    head("ANYWHERE",440,640);col4.forEach((r,i)=>row(r[0],r[1],440,690+i*50));
-    head("AT THE TV",810,262);col3.forEach((r,i)=>row(r[0],r[1],810,316+i*50));
-    head("ALSO",810,620);col5.forEach((r,i)=>row(r[0],r[1],810,670+i*50));
+    head("ON THE DESK",340,262);col2.forEach((r,i)=>row(r[0],r[1],340,316+i*50));
+    head("AT THE TV",660,262);col3.forEach((r,i)=>row(r[0],r[1],660,316+i*50));
+    head("ALSO",660,620);col5.forEach((r,i)=>row(r[0],r[1],660,670+i*46));
+    head("ANYWHERE",940,262);col4.forEach((r,i)=>row(r[0],r[1],940,316+i*50));
     g.restore();
     const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
   };
@@ -1507,6 +1521,7 @@ addEventListener("keydown",e=>{
   else if(k==="o"&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go("pcpower");
   else if(k==="g"&&!term.active&&!padOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){cred.open?cred.hide():cred.show()}
   else if((k==="a"||k==="d")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go(k==="a"?"trophy":"recorder");
+  else if((k==="q"||k==="x"||k==="j"||k==="y")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go(k==="q"?"player":k==="x"?"deskchair":k==="j"?"plant":"drawer");
   else if(k==="h")go("phone");
   else if(k==="v")go("remote");
   else if(k==="k")go("clocks");
@@ -1514,7 +1529,7 @@ addEventListener("keydown",e=>{
     if(k==="s")sipMug();else if(k==="u")openCalc();else if(k==="i")spinPencils();else toggleLamp(k==="l"?"desk":"floor");
   }
   else if(k==="?"){if(!document.documentElement.classList.contains("crt-gating"))keysNote.toggle()}
-  else if(k==="escape"){if(keysNote.open)keysNote.hide();else if(remote?.out)remote.putBack();else if(creditsOpen())closeCredits();else go("home")}
+  else if(k==="escape"){if(deskProps?.certOpen)deskProps.hideCert();else if(keysNote.open)keysNote.hide();else if(remote?.out)remote.putBack();else if(creditsOpen())closeCredits();else go("home")}
 });
 
 class QuietAmbience extends Ambience{
@@ -1547,6 +1562,11 @@ function tipFor3d(h){
     case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
     case"pencils":return "CLICK TO SPIN THE PENCILS";
+    case"player":return deskProps?.musicOn?"CLICK TO STOP THE MUSIC · KEY Q":"CLICK TO PLAY SOME RETRO MUSIC · KEY Q";
+    case"chair":return "CLICK TO PUSH THE CHAIR IN OR PULL IT OUT · KEY X";
+    case"plant":return "CLICK TO SHAKE THE LEAVES · KEY J";
+    case"drawer":return deskProps?.drawerOpen?"CLICK TO CLOSE THE DRAWER · KEY Y":"CLICK TO OPEN THE DRAWER: MY CERTIFICATES · KEY Y";
+    case"cert":return "CLICK TO READ: "+deskProps.certName(h.idx).toUpperCase();
     case"trophy":return snap?.name==="trophy"&&!tween?"CLICK TO SPIN THE CUP · KEY A":"CLICK TO LOOK AT THE TROPHY · KEY A";
     case"rec":{
       if(!(snap?.name==="recorder"&&!tween))return "CLICK TO LOOK AT THE RADIO RECORDER · KEY D";
@@ -1575,7 +1595,7 @@ function tipFor3d(h){
     default:return "CLICK TO OPEN THE NOTEPAD";
   }
 }
-const VIEW_TIPS={trophy:"CLICK TO SPIN THE TROPHY · KEY A",recorder:"CLICK TO TUNE THE NEWS RADIO · KEY D",chair:"CLICK TO LOOK AT THE CHAIR AND THE RIGHT WALL · KEY R",notepad:"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT · KEY B",outside:"CLICK TO LOOK OUT OF THE WINDOW · KEY W",clocks:"CLICK TO LOOK AT THE CLOCKS · KEY K",phone:"CLICK TO ANSWER THE PHONE · KEY H",tapes:"CLICK TO LOOK AT THE TAPES · KEY T",ibm:"CLICK TO USE THE COMPUTER · KEY C",pad:"CLICK TO LIFT THE WORK NOTES · KEY N",desk:"CLICK TO ZOOM IN ON THE TV · KEY Z",
+const VIEW_TIPS={player:"CLICK TO PLAY SOME RETRO MUSIC · KEY Q",drawer:"CLICK TO OPEN THE DRAWER: MY CERTIFICATES · KEY Y",trophy:"CLICK TO SPIN THE TROPHY · KEY A",recorder:"CLICK TO TUNE THE NEWS RADIO · KEY D",chair:"CLICK TO LOOK AT THE CHAIR AND THE RIGHT WALL · KEY R",notepad:"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT · KEY B",outside:"CLICK TO LOOK OUT OF THE WINDOW · KEY W",clocks:"CLICK TO LOOK AT THE CLOCKS · KEY K",phone:"CLICK TO ANSWER THE PHONE · KEY H",tapes:"CLICK TO LOOK AT THE TAPES · KEY T",ibm:"CLICK TO USE THE COMPUTER · KEY C",pad:"CLICK TO LIFT THE WORK NOTES · KEY N",desk:"CLICK TO ZOOM IN ON THE TV · KEY Z",
   power:()=>(tv.on?"CLICK TO TURN OFF THE TV":"CLICK TO TURN ON THE TV")+" · KEY P"};
 function tipFor(el){
   if(el.id==="pad-scrim")return "CLICK ANYWHERE TO PUT THE PAPER BACK DOWN";
@@ -1620,6 +1640,8 @@ function pick(ev){
   if(mug.hit)targets.push(mug.hit);
   if(pencils.hit)targets.push(pencils.hit);
   if(props)targets.push(...props.pickMeshes());
+  if(deskProps)targets.push(...deskProps.pickMeshes());
+  if(meshes.Room_Plant)targets.push(meshes.Room_Plant);
   targets.push(...lampHits);if(meshes.Room_Lamp)targets.push(meshes.Room_Lamp);
   if(calc.group&&!calcOpen())targets.push(calc.body,...calc.keys);
   if(phone)targets.push(...phone.pickMeshes());
@@ -1643,7 +1665,8 @@ function pick(ev){
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
   if(n==="MugHit")return {kind:"mug"};
   if(hit.object.userData.pencils)return {kind:"pencils"};
-  if(hit.object.userData.prop)return props.info(hit.object);
+  if(hit.object.userData.prop){const pi=props?.info(hit.object)||deskProps?.info(hit.object);if(pi)return pi}
+  if(n==="Room_Plant")return {kind:"plant"};
   if(hit.object.userData.lamp)return {kind:"lamp",id:hit.object.userData.lamp};
   if(n==="CalcBody"||n==="CalcKey")return {kind:"calc"};
   if(n==="Pad")return {kind:"pad"};
@@ -1702,6 +1725,11 @@ canvas.addEventListener("pointerup",ev=>{
   else if(hit.kind==="mug")sipMug();
   else if(hit.kind==="pencils")spinPencils();
   else if(hit.kind==="trophy")go("trophy");
+  else if(hit.kind==="player")go("player");
+  else if(hit.kind==="chair")go("deskchair");
+  else if(hit.kind==="plant")go("plant");
+  else if(hit.kind==="drawer")go("drawer");
+  else if(hit.kind==="cert")deskProps?.showCert(hit.idx);
   else if(hit.kind==="rec")recClick(hit.part);
   else if(hit.kind==="lamp")toggleLamp(hit.id);
   else if(hit.kind==="calc")openCalc();
@@ -1806,7 +1834,7 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);stepPencils(now);props?.step(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);stepPencils(now);props?.step(now);deskProps?.step(now);stepPlantShake(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
   gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:term.active?0.3:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
@@ -1865,6 +1893,9 @@ function setupWind(){
 }
 
 // Plant: leaves and stems sway in the same wind as the curtains. The pot, soil and stones (below y 0.936) stay still.
+const plantShake={value:0};let plantShakeAt=-1e9;
+function shakePlant(){plantShakeAt=performance.now();sfx.rustle();if(reduced)plantShake.value=0.4}
+function stepPlantShake(now){const t=(now-plantShakeAt)/1000,v=t<0?0:Math.min(1,t*6)*Math.max(0,1-t/2.8);plantShake.value=reduced?(t<1.2?0.4:0):v*v*(3-2*v)}
 function setupPlant(){
   const mesh=meshes.Room_Plant,mat=mesh&&mesh.material;if(!mat)return;
   const g=mesh.geometry,pos=g.attributes.position,a=new Float32Array(pos.count),v=new THREE.Vector3();let n=0;
@@ -1879,11 +1910,11 @@ function setupPlant(){
   const prev=mat.onBeforeCompile;
   mat.onBeforeCompile=sh=>{
     if(prev)prev.call(mat,sh);
-    sh.uniforms.uTime=windU.uTime;
-    sh.vertexShader="uniform float uTime;attribute float aSway;\n"+sh.vertexShader.replace("#include <begin_vertex>",`#include <begin_vertex>
+    sh.uniforms.uTime=windU.uTime;sh.uniforms.uShake=plantShake;
+    sh.vertexShader="uniform float uTime,uShake;attribute float aSway;\n"+sh.vertexShader.replace("#include <begin_vertex>",`#include <begin_vertex>
       vec3 wp0=(modelMatrix*vec4(position,1.0)).xyz;float ph=wp0.x*4.1+wp0.z*3.3+wp0.y*1.7;
       float gu=0.55+0.45*sin(uTime*0.43)*sin(uTime*0.29+1.3);
-      vec3 dw=vec3(sin(uTime*1.35+ph)*0.6+sin(uTime*2.7+ph*1.7)*0.25,sin(uTime*1.9+ph*1.3)*0.22,cos(uTime*1.15+ph*0.8)*0.5+0.18)*aSway*0.07*(0.5+0.8*gu);
+      vec3 dw=vec3(sin(uTime*1.35+ph)*0.6+sin(uTime*2.7+ph*1.7)*0.25,sin(uTime*1.9+ph*1.3)*0.22,cos(uTime*1.15+ph*0.8)*0.5+0.18)*aSway*0.07*(0.5+0.8*gu)*(1.0+uShake*3.5)+vec3(sin(uTime*10.0+ph*2.0),sin(uTime*12.5+ph),cos(uTime*9.0+ph*1.6))*aSway*0.03*uShake;
       transformed+=transpose(mat3(modelMatrix))*dw;`);
   };
   mat.needsUpdate=true;
@@ -2372,6 +2403,7 @@ Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   try{keysNote.attach(meshes.Room_Desk)}catch(e){console.warn("sticky pad failed",e)}
   try{setupCalc()}catch(e){console.warn("calc failed",e)}
   try{props=createProps({scene,meshes,reduced,sfx,say:nudge,soundOk:()=>soundBtn.getAttribute("aria-pressed")==="true"&&!onComputer()&&!phoneQuiet,onRadio:on=>crtVideo.away(on)});buildViews()}catch(e){console.warn("props failed",e)}
+  try{deskProps=createDeskProps({scene,meshes,reduced,sfx,say:nudge,lampDim,soundOk:()=>soundBtn.getAttribute("aria-pressed")==="true"&&!onComputer()&&!phoneQuiet,loud:()=>!crtVideo.playing});buildViews()}catch(e){console.warn("desk props failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}
   try{setupWind()}catch(e){console.warn("wind failed",e)}
   try{setupPlant()}catch(e){console.warn("plant failed",e)}

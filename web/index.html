@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="crt-gate.css?v=10">
 <link rel="stylesheet" href="pad.css">
-<link rel="stylesheet" href="felix-ui.css?v=29">
+<link rel="stylesheet" href="felix-ui.css?v=30">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
 </script>
@@ -75,6 +75,10 @@ html[data-view="ibm"] #tint{opacity:.12}
         <li><button type="button" data-act="spin"><kbd>I</kbd> Spin pencils</button></li>
         <li><button type="button" data-view="power"><kbd>P</kbd> TV on / off</button></li>
         <li><button type="button" data-view="pcpower"><kbd>O</kbd> Computer on / off</button></li>
+        <li><button type="button" data-view="player"><kbd>Q</kbd> Music player</button></li>
+        <li><button type="button" data-view="deskchair"><kbd>X</kbd> Push the chair in / out</button></li>
+        <li><button type="button" data-view="plant"><kbd>J</kbd> Shake the plant</button></li>
+        <li><button type="button" data-view="drawer"><kbd>Y</kbd> Drawer: certificates</button></li>
         <li><button type="button" data-view="trophy"><kbd>A</kbd> Trophy: spin the cup</button></li>
         <li><button type="button" data-view="recorder"><kbd>D</kbd> Radio recorder: live news</button></li>
       </ul>
@@ -185,7 +189,7 @@ html[data-view="ibm"] #tint{opacity:.12}
 
 <div class="scan" aria-hidden="true"></div>
 <script type="module" src="crt-gate.js?v=12"></script>
-<script type="module" src="main-pad.js?v=150"></script>
+<script type="module" src="main-pad.js?v=152"></script>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="nightgrade" color-interpolation-filters="sRGB">
 <feComponentTransfer><feFuncR type="gamma" amplitude="1.0" exponent="1.0" offset="0.012"/><feFuncG type="gamma" amplitude="1.0" exponent="1.03" offset="0.010"/><feFuncB type="gamma" amplitude="1.0" exponent="1.0" offset="0.016"/></feComponentTransfer></filter></svg>
 <p id="phone-cap" role="status" hidden>&ldquo;Hello, thanks for picking up. This is Sakina.
