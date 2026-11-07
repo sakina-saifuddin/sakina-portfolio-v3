@@ -3,7 +3,7 @@
 const TICKS = [0, 0.45, 0.9, 1.35, 1.8, 2.25];
 
 export function createSfx({ enabled }) {
-  let ctx = null, out = null, soft = null, dest = null, clockBuf = null, loading = null, noise = null, tickN = 0, typedAt = 0;
+  let ctx = null, out = null, soft = null, dest = null, clockBuf = null, sipBufs = [], sipLoading = null, sipLast = -1, loading = null, noise = null, tickN = 0, typedAt = 0;
 
   function ready() {
     if (!enabled()) return false;
@@ -17,6 +17,9 @@ export function createSfx({ enabled }) {
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     if (!clockBuf && !loading) {
       loading = fetch("sfx/clock.mp3").then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(b => { clockBuf = b; }).catch(() => {});
+    }
+    if (!sipLoading) {
+      sipLoading = Promise.all([1, 2, 3].map(n => fetch("sfx/sip" + n + ".mp3?v=1").then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(b => { sipBufs.push(b); }).catch(() => {})));
     }
     return ctx.state !== "closed";
   }
@@ -91,6 +94,99 @@ export function createSfx({ enabled }) {
         click(t, 0.3); thump(t, 0.25); tone(t + 0.12, 0.5, "sine", 2350, 2330, 0.07); hiss(t + 0.03, 0.25, 0.1, "bandpass", 1200, 500, 2); return;
       }
       click(t, 0.3 + Math.random() * 0.1); tone(t, 0.05, "square", 160 + Math.random() * 50, 90, 0.06, 1100);
+    },
+    // a sip of coffee: a soft slurp, a few bubbles, a gulp and a small "ahh". sip(0) is the dry sound of an empty mug.
+    // Returns how many seconds the sound lasts (the caller lowers the CRT video for that long).
+    // A real recorded slurp (freesound_community, "slurping") when loaded, the synthesized one as a fallback.
+    sip(level = 1) {
+      if (!ready()) return 0; const t = ctx.currentTime + 0.02;
+      if (level > 0 && sipBufs.length) {
+        let k; do { k = Math.floor(Math.random() * sipBufs.length); } while (sipBufs.length > 1 && k === sipLast); sipLast = k;
+        const s = ctx.createBufferSource(); s.buffer = sipBufs[k]; s.playbackRate.value = 0.96 + Math.random() * 0.08;
+        const g = ctx.createGain(); g.gain.value = 1.0; s.connect(g).connect(out); s.start(t);   // balanced against the CRT video (which is only lowered to half while it plays)
+        return sipBufs[k].duration / s.playbackRate.value;
+      }
+      if (level <= 0) { hiss(t, 0.35, 0.3, "bandpass", 1900, 900, 3); tone(t + 0.2, 0.1, "sine", 500, 320, 0.15); return 0.4; }
+      // loud, so it is heard over the CRT video: a long wet slurp that rises in pitch, bubbles, a big gulp and an "ahh"
+      hiss(t, 0.7, 0.6, "bandpass", 500, 3200, 4.5);
+      hiss(t + 0.05, 0.6, 0.25, "highpass", 4000, 2500);
+      hiss(t + 0.2, 0.4, 0.3, "bandpass", 1500, 2600, 6);
+      for (let i = 0; i < 6; i++) tone(t + 0.12 + i * 0.1 + Math.random() * 0.03, 0.09, "sine", 500 + Math.random() * 500, 240, 0.2);
+      tone(t + 0.85, 0.2, "sine", 200, 80, 0.9); tone(t + 1.05, 0.14, "sine", 170, 75, 0.5);
+      hiss(t + 1.2, 0.5, 0.2, "lowpass", 1000, 350);
+      return 1.8;
+    },
+    // pencils turning in their holder: a quick wooden rattle that thins out
+    pencils() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      for (let i = 0; i < 9; i++) {
+        const at = t + i * 0.07 + Math.random() * 0.05 + i * i * 0.006, p = 0.2 * Math.pow(0.8, i);
+        hiss(at, 0.03, p, "bandpass", 2600 + Math.random() * 900, 1500, 5);
+        tone(at, 0.05, "triangle", 900 + Math.random() * 700, 520, p * 0.35, 3000);
+      }
+    },
+    // a cassette recorder key: a heavy mechanical clunk going down, a lighter click coming back up
+    recKey(down = true) {
+      if (!ready()) return; const t = ctx.currentTime + 0.01;
+      if (down) { click(t, 0.55); thump(t, 0.35); tone(t, 0.05, "square", 520, 260, 0.08, 1800); hiss(t + 0.03, 0.06, 0.16, "bandpass", 700, 400, 1); }
+      else { click(t, 0.35); tone(t, 0.04, "square", 700, 380, 0.06, 2000); }
+    },
+    // tuning between stations: a sweep of radio static with a few whistles, then it settles
+    tune(dur = 0.7) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      hiss(t, dur, 0.42, "bandpass", 600, 3600, 1.3); hiss(t + 0.05, dur * 0.9, 0.2, "highpass", 3000, 2000);
+      tone(t, dur * 0.8, "sine", 500, 1700, 0.06, 3000); tone(t + dur * 0.35, dur * 0.5, "sine", 2100, 700, 0.04, 3000);
+    },
+    // trophy: a small bright bell, three notes of a major chord ringing out
+    chime() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      [1568, 1976, 2349].forEach((f, i) => {
+        const at = t + i * 0.09;
+        tone(at, 1.4, "sine", f, f * 0.998, 0.11, 6000); tone(at, 0.6, "sine", f * 2.01, f * 2, 0.035, 8000);
+      });
+      hiss(t, 0.05, 0.12, "highpass", 4000, 3000);
+    },
+    // a wooden chair or drawer sliding: a low scrape that swells and fades, with a soft knock at the end
+    scrape() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      hiss(t, 0.7, 0.3, "bandpass", 380, 260, 1.2); hiss(t + 0.1, 0.5, 0.12, "lowpass", 900, 400);
+      tone(t + 0.68, 0.12, "sine", 150, 70, 0.3); click(t + 0.68, 0.2);
+    },
+    // a heavy wooden chair dragged over floorboards: a rough low rumble that skips, with a knock when it stops
+    drag() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      for (let i = 0; i < 9; i++) { const at = t + i * 0.1 + Math.random() * 0.03; hiss(at, 0.13, 0.34, "lowpass", 520 + Math.random() * 260, 240, 0.8); hiss(at, 0.09, 0.12, "bandpass", 1100, 700, 1.5); }
+      tone(t, 1.0, "sawtooth", 62, 48, 0.08, 220);
+      tone(t + 0.95, 0.14, "sine", 130, 55, 0.4); click(t + 0.95, 0.25);
+    },
+    // a drawer opening or closing: wood groaning (a wavering resonant note) over scraping friction, ending in a knock
+    creak(open = true) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02, d = open ? 1.3 : 0.8;
+      const o = ctx.createOscillator(); o.type = "sawtooth";
+      o.frequency.setValueAtTime(open ? 190 : 150, t); o.frequency.linearRampToValueAtTime(open ? 96 : 130, t + d * 0.45); o.frequency.linearRampToValueAtTime(open ? 150 : 82, t + d);
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 10;
+      bp.frequency.setValueAtTime(650, t); bp.frequency.linearRampToValueAtTime(1500, t + d * 0.55); bp.frequency.linearRampToValueAtTime(850, t + d);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + 0.14); g.gain.setValueAtTime(0.2, t + d * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 17; const lg = ctx.createGain(); lg.gain.value = 0.07; lfo.connect(lg).connect(g.gain);
+      o.connect(bp).connect(g).connect(dest || out); o.start(t); o.stop(t + d + 0.05); lfo.start(t); lfo.stop(t + d + 0.05);
+      hiss(t, d, 0.2, "bandpass", 1300, 500, 1.2); hiss(t + 0.05, d * 0.9, 0.1, "lowpass", 700, 300, 0.7);
+      tone(t + d, 0.12, "sine", open ? 120 : 160, 55, 0.35); click(t + d, 0.22);
+    },
+    // leaves rustling: soft bursts of filtered noise
+    rustle() {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      for (let i = 0; i < 9; i++) hiss(t + i * 0.14 + Math.random() * 0.08, 0.16, 0.22 * Math.pow(0.86, i), "bandpass", 3200 + Math.random() * 2200, 2400, 0.8);
+    },
+    // a lamp switch: a firm mechanical click, a little lower and softer for off than for on
+    lamp(on = true) {
+      if (!ready()) return; const t = ctx.currentTime + 0.02;
+      click(t, on ? 0.7 : 0.55); tone(t, 0.04, "square", on ? 900 : 700, on ? 420 : 300, 0.12, 2400);
+      click(t + 0.05, 0.35); tone(t + 0.03, 0.12, "sine", on ? 240 : 170, 90, 0.14);
+    },
+    // a calculator key: a short plastic click, a touch lower and heavier for = and the clear keys
+    calcKey(big = false) {
+      if (!ready()) return; const t = ctx.currentTime + 0.01;
+      click(t, big ? 0.5 : 0.38); tone(t, 0.035, "square", big ? 700 : 950, big ? 380 : 520, big ? 0.12 : 0.09, 2600); hiss(t + 0.045, 0.03, 0.12, "bandpass", 900, 500, 1);
     },
     // one tick per call, quieter the farther the camera is from the clock
     tick(dist = 1.5) {

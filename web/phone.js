@@ -5,7 +5,7 @@ import * as THREE from "three";
 // goes back onto the cradle. The base stays in the baked mesh and gets an invisible click box.
 const HANDSET = new THREE.Box3(new THREE.Vector3(0.835, 0.7875, -2.32), new THREE.Vector3(1.105, 0.84, -2.24));
 const DESK_TOP = 0.7258;
-const SCRIPT = "\u201CHi. I\u2019m Sakina. I\u2019m a graduate student at the University of Houston, studying engineering data science and AI, and this is my portfolio. I have more than three years across software, data, automation and machine learning. In here you\u2019ll find six experiences, and five projects. Pick up any tape from the desk, and press play. Thanks for stopping by.\u201D";
+const SCRIPT = "\u201CHello, thanks for picking up. This is Sakina.\n\nPlease don\u2019t hang up because I promise it gets better.\n\nWell, a little intro about me. I\u2019m a graduate student currently pursuing my master\u2019s in Data Science and AI from the University of Houston, and I expect to graduate in May 2027.\n\nA little about my interests. My real interest is in the oil and gas industry. I\u2019ve worked on a couple of oil and gas projects before, visited companies like Chevron and CenterPoint, and not just that, but for them, I\u2019ve also built things at hackathons, which actually solved the kind of problems that they are solving in that industry.\n\nI\u2019m always exploring and doing something new. I\u2019m building projects and working on everything I can. I never sit still, and this portfolio is one of the greatest examples of the things I have built along the way.\n\nWelcome to my tiny retro Sakina study room.\n\nNow look at the tapes on the desk. Each one is a small advertisement for something I made.\n\nPick one, press play, and stay a while.\n\nAnd not just this, each and every object in this room that you are seeing right now is interactive.\n\nThanks for listening. Talk to you soon!\u201D";
 const LAMP = new THREE.Vector3(0.869, 0.791, -2.27);
 const GRILLE = new THREE.Vector3(1.057, 0.786, -2.246);
 const smooth = x => x * x * (3 - 2 * x);
@@ -80,8 +80,8 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
   // state: ringing -> lifting -> down (handset on the desk) -> speaker; hang-up returns to idle
   const HEARD = "sakina-phone-heard";
   const heard = () => { try { return sessionStorage.getItem(HEARD) === "1"; } catch { return false; } };
-  const st = { mode: heard() ? "idle" : "ringing", s: 0, dir: 0, t0: 0, settle: 0, release: false };
-  const audioEl = new Audio("sakina-phone.mp3?v=2"); audioEl.preload = "auto"; audioEl.volume = 1;
+  const st = { mode: "ringing", s: 0, dir: 0, t0: 0, settle: 0, release: false, done: false };
+  const audioEl = new Audio("sakina-phone-r2.mp3"); audioEl.preload = "auto"; audioEl.volume = 1;
   let actx = null, level = 0;
   const caption = document.getElementById("phone-cap");
 
@@ -93,24 +93,26 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
     holder.rotation.set(0, LAND.yaw * v, 0.25 * a * (1 - v) + 0.0);
   }
   function ringTone(now) {
-    if (!soundOn?.() || reduced) return;
+    if (!soundOn?.()) return;
     const ph = (now / 1000) % 3.6;
-    if (ph > 0.9 || ring.last === Math.floor(now / 3600)) return;
-    ring.last = Math.floor(now / 3600);
+    // Soft ring, repeated until the phone is answered.
+    if (ph > 0.9 || ring.last === Math.floor(now / 3600) || ring.n >= RING_MAX) return;
+    ring.last = Math.floor(now / 3600); ring.n++;
     try {
       actx ||= new AudioContext();
       if (actx.state === "suspended") actx.resume();
       const t = actx.currentTime, gn = actx.createGain();
       gn.gain.value = 0; gn.connect(actx.destination);
       for (let k = 0; k < 18; k++) {
-        const o = actx.createOscillator(); o.type = "square"; o.frequency.value = k % 2 ? 1180 : 1480;
-        const gg = actx.createGain(); gg.gain.setValueAtTime(0, t + k * 0.05); gg.gain.linearRampToValueAtTime(0.018, t + k * 0.05 + 0.005); gg.gain.setValueAtTime(0, t + k * 0.05 + 0.045);
+        const o = actx.createOscillator(); o.type = "sine"; o.frequency.value = k % 2 ? 1180 : 1480;
+        const gg = actx.createGain(); gg.gain.setValueAtTime(0, t + k * 0.05); gg.gain.linearRampToValueAtTime(RING_GAIN, t + k * 0.05 + 0.012); gg.gain.linearRampToValueAtTime(0, t + k * 0.05 + 0.048);
         o.connect(gg); gg.connect(gn); o.start(t + k * 0.05); o.stop(t + k * 0.05 + 0.05);
       }
       gn.gain.value = 1;
     } catch { /* audio unavailable */ }
   }
-  const ring = { last: -1 };
+  const ring = { last: -1, n: 0 };
+  const RING_MAX = Infinity, RING_GAIN = 0.011;   // a very slight sine ring until answered (0.02 still too present; 0.05 was too present; square wave at 0.018 was harsh; 0.0065 sine was inaudible)
 
   function answer() {
     if (st.mode !== "ringing" && st.mode !== "idle") return false;
@@ -119,21 +121,29 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
   }
   function speaker() {
     if (st.mode !== "down") return false;
-    audioEl.muted = false; audioEl.volume = 1; audioEl.currentTime = 0;
+    audioEl.muted = false; audioEl.volume = 1;
+    // Hanging up or leaving the phone only pauses the voice: the next time the speaker key is pressed it carries on from the same
+    // second. After the message has played to the end, the next time starts it again from the beginning.
+    if (st.done) { audioEl.currentTime = 0; st.done = false; }
     setMode("speaker");
-    if (caption) { caption.textContent = SCRIPT; caption.hidden = false; }
+    if (caption) { caption.textContent = SCRIPT; caption.hidden = false; syncCaption(); }
     audioEl.play().catch(() => {
       if (caption) caption.textContent = "The browser blocked the sound. Click the phone once more to play it.";
       setMode("down");
     });
     return true;
   }
+  function syncCaption() {   // the caption scrolls along with the voice
+    if (!caption || caption.hidden || !(audioEl.duration > 0)) return;
+    const room = caption.scrollHeight - caption.clientHeight;
+    if (room > 0) caption.scrollTop = Math.min(1, audioEl.currentTime / audioEl.duration) * room;
+  }
   function stopVoice() { audioEl.pause(); if (caption) caption.hidden = true; level = 0; }
   function hangup() {
     if (st.mode !== "down" && st.mode !== "speaker") return false;
     stopVoice(); st.dir = -1; st.t0 = 0; setMode("returning"); return true;
   }
-  audioEl.addEventListener("ended", () => { if (st.mode === "speaker") hangup(); });
+  audioEl.addEventListener("ended", () => { st.done = true; if (st.mode === "speaker") hangup(); });
   function release() {
     if (st.mode === "down" || st.mode === "speaker") return hangup();
     if (st.mode === "lifting") st.release = true;
@@ -151,17 +161,17 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
     if (st.s > 0) {
       pose(st.s);
       if (st.dir === 0 && !reduced) { const k = (now - st.settle) / 1000; holder.position.y += 0.007 * Math.exp(-k * 9) * Math.abs(Math.sin(k * 22)); }
-    } else if (st.mode === "ringing" && !reduced) {
-      const k = (now / 1000) % 3.6, on = k < 1.0;
-      const w = on ? 1 : 0, f = now * 0.062;
+    } else if (st.mode === "ringing") {
+      const w = reduced ? 0.5 : 1, f = now * 0.062;   // shakes all the time until the phone is picked up
       holder.position.set(c.x + w * 0.0045 * Math.sin(f * 1.9), c.y + w * (0.0035 * Math.abs(Math.sin(f)) + 0.0015 * Math.abs(Math.sin(f * 2.7))), c.z + w * 0.0025 * Math.sin(f * 1.3));
       holder.rotation.set(w * 0.035 * Math.sin(f * 1.6), w * 0.06 * Math.sin(f * 1.1), w * 0.075 * Math.sin(f * 1.9));
       ringTone(now);
     }
     keyGlow.material.opacity = st.mode === "down" && !reduced ? 0.25 + 0.2 * Math.sin(now * 0.005) : st.mode === "down" ? 0.35 : 0;
-    const blink = st.mode === "ringing" ? (Math.floor(now / 300) % 2 ? 1 : 0.15) : st.mode === "idle" ? 0 : 0.35;
+    const blink = st.mode === "ringing" ? (Math.floor(now / 300) % 2 ? 1 : 0.15) : 0;
     lamp.material.opacity = reduced && st.mode === "ringing" ? 1 : blink;
     const talking = st.mode === "speaker" && !audioEl.paused;
+    if (talking) syncCaption();
     level += ((talking ? 0.5 + 0.5 * Math.abs(Math.sin(now * 0.013) * Math.sin(now * 0.0047)) : 0) - level) * 0.25;
     grille.material.opacity = Math.min(1, level);
   }
@@ -169,6 +179,7 @@ export function createPhone({ source, scene, reduced, soundOn, onState }) {
   return {
     step, answer, speaker, hangup, release,
     get mode() { return st.mode; },
+    get voice() { return { time: audioEl.currentTime, duration: audioEl.duration, paused: audioEl.paused, done: st.done }; },
     get busy() { return st.dir !== 0; },
     pickMeshes: () => [mesh, hitBox, keyMesh],
     speakerHit: ray => ray.intersectObject(keyMesh, false).length > 0,

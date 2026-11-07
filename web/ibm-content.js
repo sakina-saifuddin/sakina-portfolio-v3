@@ -1,18 +1,38 @@
 export const BOOT = [
-  "Sakina Computer BASIC Version 3.0",
+  "Personal Computer BASIC Version 1.10",
   "Copyright (C) 1984, Sakina Saifuddin",
   "61440 Bytes free",
   "",
   "Hi! Type ABOUT to start, or HELP."
 ];
 
+// function-key bar on the bottom row (F1..F5, or click)
 export const BAR = [
   {key: "1", label: "ABOUT", cmd: "ABOUT"},
-  {key: "2", label: "WORK", cmd: "WORK"},
-  {key: "3", label: "PROJECTS", cmd: "PROJECTS"},
-  {key: "4", label: "HACKS", cmd: "HACKS"},
-  {key: "5", label: "CONTACT", cmd: "CONTACT"}
+  {key: "2", label: "ONLINE", cmd: "ONLINE"},
+  {key: "3", label: "HELP", cmd: "HELP"},
+  {key: "4", label: "FILES", cmd: "FILES"},
+  {key: "5", label: "RUN", cmd: "RUN"}
 ];
+
+// \u0001 ... \u0002 marks the bright (white-green) words, like the command names on the reference HELP screen
+const hi = (t) => "\u0001" + t + "\u0002";
+
+// the "ONLINE" screen (a bulletin-board style links page)
+export const BBS = {
+  title: "SAKINA BBS",
+  banner: "SAKINA",
+  tagline: "Node 1 of 1  \u00b7  28800 bps  \u00b7  always open",
+  intro: "Where else to find me:",
+  links: [
+    {label: "Email", shown: "sakinasaifee006@gmail.com", href: "mailto:sakinasaifee006@gmail.com"},
+    {label: "LinkedIn", shown: "linkedin.com/in/sakinasaifuddin", href: "https://www.linkedin.com/in/sakinasaifuddin/"},
+    {label: "GitHub", shown: "github.com/sakina-saifuddin", href: "https://github.com/sakina-saifuddin"},
+    {label: "Ask me", shown: "askksakina.netlify.app", href: "https://askksakina.netlify.app"}
+  ],
+  prompt: "Press 1-4 or click a line to open it. Q hangs up.",
+  bottom: "1-4 open  L links  Q hang up"
+};
 
 const about = [
   "Hi, I'm Sakina Saifuddin.",
@@ -105,14 +125,33 @@ const contact = [
 ];
 
 const help = [
-  "Commands:",
-  "  ABOUT     my story",
-  "  ROLES     what I am looking for",
-  "  WORK      where I have worked",
-  "  PROJECTS  what I have built",
-  "  HACKS     hackathons",
-  "  CONTACT   how to reach me",
-  "  CLEAR     clear the screen"
+  hi("ABOUT") + "     who I am (F1)",
+  hi("ONLINE") + "    where else to find me (F2)",
+  hi("SNAKE BLOCKS ZOMBIE") + "  games",
+  hi("DEMO") + "      the screensaver",
+  hi("OPTIONS") + "   other versions of things",
+  hi("DEBUG") + "     fly around the room",
+  hi("WORK") + "      where I have worked",
+  hi("PROJECTS") + "  what I have built",
+  hi("HACKS") + "     hackathons",
+  hi("ROLES") + "     what I am looking for",
+  hi("EMAIL LINKEDIN GITHUB ASK") + " open one",
+  hi("SYSTEM") + "    back to the desk",
+  "",
+  hi("Programs"),
+  "  " + hi("FILES") + "     what's on the disk",
+  "  " + hi("RUN \"x\"") + "   run one, like RUN \"HELLO\"",
+  "  " + hi("LIST") + "      show it   NEW  EDIT n",
+  "  " + hi("TRON") + "      show line numbers as it runs",
+  "  " + hi("SAVE \"x\"") + "  DELETE n  TROFF",
+  "",
+  hi("BASIC"),
+  "  " + hi("PRINT INPUT LET IF GOTO GOSUB FOR NEXT"),
+  "  " + hi("WHILE WEND DATA READ DIM END CLS BEEP"),
+  "  Start a line with a number to write",
+  "  your own program, then type RUN.",
+  "",
+  "Ctrl+C stops a program. Q leaves a game."
 ];
 
 export const commands = {
@@ -124,10 +163,48 @@ export const commands = {
   PROJECTS: {lines: projects},
   HACKS: {lines: hacks},
   HACKATHONS: {lines: hacks},
-  CONTACT: {lines: contact},
+  CONTACT: {online: true},
+  ONLINE: {online: true},
   HELP: {lines: help},
   EMAIL: {href: "mailto:sakinasaifee006@gmail.com", lines: ["Opening your mail app."]},
   LINKEDIN: {href: "https://www.linkedin.com/in/sakinasaifuddin/", lines: ["Opening LinkedIn in a new tab."]},
   GITHUB: {href: "https://github.com/sakina-saifuddin", lines: ["Opening GitHub in a new tab."]},
   ASK: {href: "https://askksakina.netlify.app", lines: ["Opening AskSakina in a new tab."]}
+};
+
+// the programs on the "disk" (FILES lists them, RUN "name" loads and runs one)
+export const PROGRAMS = {
+  HELLO: [
+    '10 REM HELLO',
+    '20 INPUT "What is your name"; N$',
+    '30 PRINT "Hello, "; N$; "!"',
+    '40 PRINT "Welcome to my computer."',
+    '50 PRINT "Type ABOUT to read my story."'
+  ],
+  SQUARES: [
+    '10 REM SQUARES',
+    '20 FOR I = 1 TO 10',
+    '30 PRINT I; "squared is"; I * I',
+    '40 NEXT I'
+  ],
+  GUESS: [
+    '10 REM GUESS THE NUMBER',
+    '20 N = INT(RND * 100) + 1',
+    '30 T = 0',
+    '40 PRINT "I am thinking of a number from 1 to 100."',
+    '50 INPUT "Your guess"; G',
+    '60 T = T + 1',
+    '70 IF G < N THEN PRINT "Too low.": GOTO 50',
+    '80 IF G > N THEN PRINT "Too high.": GOTO 50',
+    '90 PRINT "Yes! You got it in"; T; "guesses."'
+  ],
+  SKILLS: [
+    '10 REM THINGS I WORK WITH',
+    '20 PRINT "Things I work with:"',
+    '30 READ S$',
+    '40 IF S$ = "END" THEN END',
+    '50 PRINT "  "; S$',
+    '60 GOTO 30',
+    '70 DATA Python, SQL, Power BI, Tableau, Databricks, LightGBM, n8n, React Native, Node.js, AWS, END'
+  ]
 };

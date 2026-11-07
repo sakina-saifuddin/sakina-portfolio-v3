@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=5";
-import {createNotebook} from "./notebook.js?v=6";
+import {createSfx} from "./sfx.js?v=14";
+import {createProps} from "./props.js?v=4";
+import {createDeskProps} from "./desk-props.js?v=3";
+import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
@@ -10,10 +12,11 @@ import {Ambience} from "./audio.js";
 import {pad} from "./pad-content.js";
 import {makePadTexture,PAD,UNDER,PAD_ROWS,PAD_W,PAD_H} from "./pad-texture.js";
 import {createTapeDeck} from "./tape-deck.js?v=4";
-import {makeIbmTerminal} from "./ibm-terminal.js?v=6";
+import {createRemote} from "./remote.js?v=6";
+import {makeIbmTerminal} from "./ibm-terminal.js?v=8";
 import {addIbmLights} from "./ibm-lights.js?v=2";
 import {createCityLife} from "./city-life.js?v=3";
-import {createPhone} from "./phone.js?v=6";
+import {createPhone} from "./phone.js?v=14";
 import {EffectComposer} from "three/addons/postprocessing/EffectComposer.js";
 import {RenderPass} from "three/addons/postprocessing/RenderPass.js";
 import {UnrealBloomPass} from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -74,10 +77,10 @@ function setProgress(){
   $("loader-fill").style.width=p+"%";$("loader-text").textContent="LOADING "+p+"%";
 }
 // Per-tape click boxes generated from the Blender scene (pipeline/tools/tape_layout.py).
-let cityLife=null,gateEl,phone=null,phoneQuiet=false;const _gq=new THREE.Vector3();
+let cityLife=null,gateEl,phone=null,phoneQuiet=false,props=null,deskProps=null;const _gq=new THREE.Vector3();
 const TAPE_PAL=[0xc9a227,0x1f8f73,0xa8281f,0x2a4a9a,0xd9631c,0x2f7d3a,0x1f2f63,0x3a8a4a,0x7a3b8c,0xd0541d,0xa02a3c,0x1c6f8a,0x8a7a2a];
 let TAPES=[];
-let deck=null,notebook=null;const logoMeshes=[];
+let deck=null,notebook=null,remote=null;const logoMeshes=[];
 const tapeBoxU={min:{value:Array.from({length:16},()=>new THREE.Vector3(1e9,1e9,1e9))},max:{value:Array.from({length:16},()=>new THREE.Vector3(-1e9,-1e9,-1e9))},n:{value:0}};
 const tapesP=fetch("tapes.json").then(r=>r.json()).then(t=>{TAPES=t.map(d=>({idx:d.idx,object:d.object,box:new THREE.Box3(new THREE.Vector3(...d.min),new THREE.Vector3(...d.max))}));TAPES.slice(0,16).forEach((t,i)=>{tapeBoxU.min.value[i].copy(t.box.min);tapeBoxU.max.value[i].copy(t.box.max)});tapeBoxU.n.value=Math.min(16,TAPES.length)});
 // Reflections: a 360 degree capture of the baked room (rendered in Blender at desk height) filters into the environment map.
@@ -132,18 +135,41 @@ function pcWhite(m,name){
 }
 // The desk under each stack is baked dark where a tape sat. When the bottom tape of a stack is taken out, that patch is lifted
 // back to the colour of the desk around it, so the empty spot does not read as a black shadow.
-const DG={a:{value:new THREE.Vector4(9,9,9,9)},b:{value:new THREE.Vector4(9,9,9,9)},g:{value:new THREE.Vector2(0,0)}};
+const DG={a:{value:new THREE.Vector4(9,9,9,9)},b:{value:new THREE.Vector4(9,9,9,9)},h:{value:0},g:{value:new THREE.Vector2(0,0)}};
 function deskGone(m){
   const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{
     prev.call(m,sh,r);
-    Object.assign(sh.uniforms,{uDgA:DG.a,uDgB:DG.b,uDgG:DG.g});
-    sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec4 uDgA;uniform vec4 uDgB;uniform vec2 uDgG;")
+    Object.assign(sh.uniforms,{uDgA:DG.a,uDgB:DG.b,uDgH:DG.h,uDgG:DG.g});
+    sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec4 uDgA;uniform vec4 uDgB;uniform float uDgH;uniform vec2 uDgG;")
       .replace("#include <emissivemap_fragment>",`#include <emissivemap_fragment>
         float dgy=1.0-smoothstep(0.728,0.742,vWPw.y);
         float dga=smoothstep(uDgA.x-.012,uDgA.x+.004,vWPw.x)*(1.0-smoothstep(uDgA.y-.004,uDgA.y+.012,vWPw.x))*smoothstep(uDgA.z-.012,uDgA.z+.004,vWPw.z)*(1.0-smoothstep(uDgA.w-.004,uDgA.w+.012,vWPw.z));
         float dgb=smoothstep(uDgB.x-.012,uDgB.x+.004,vWPw.x)*(1.0-smoothstep(uDgB.y-.004,uDgB.y+.012,vWPw.x))*smoothstep(uDgB.z-.012,uDgB.z+.004,vWPw.z)*(1.0-smoothstep(uDgB.w-.004,uDgB.w+.012,vWPw.z));
-        totalEmissiveRadiance*=1.0+dgy*(dga*uDgG.x+dgb*uDgG.y)*DG_K;`.replace("DG_K",DG_K.toFixed(2)));
+        totalEmissiveRadiance*=1.0+dgy*(dga*uDgG.x+dgb*uDgG.y)*DG_K;
+        // The remote's footprint is baked into the desk as a dark patch. While the remote is away that patch is replaced by the desk texture
+        // taken from just in front of it (0.095 m toward the viewer, found through the screen-space derivatives of position and uv).
+        #ifdef USE_EMISSIVEMAP
+        {
+          vec2 rl=vec2(dot(vWPw.xz-vec2(0.1300,-1.8596),vec2(0.99871,0.05069)),dot(vWPw.xz-vec2(0.1300,-1.8596),vec2(0.05069,-0.99871)));
+          vec2 rq=abs(vec2(rl.x,rl.y+0.007))-vec2(0.1015-0.012,0.036-0.012);
+          float rsd=length(max(rq,0.0))+min(max(rq.x,rq.y),0.0)-0.012;
+          float rmw=uDgH*dgy*(1.0-smoothstep(0.0035,0.0125,rsd));
+          vec3 dPx=dFdx(vWPw),dPy=dFdy(vWPw);vec2 dUx=dFdx(vEmissiveMapUv),dUy=dFdy(vEmissiveMapUv);
+          float g11=dot(dPx,dPx),g12=dot(dPx,dPy),g22=dot(dPy,dPy);
+          float det=max(g11*g22-g12*g12,1e-14);
+          // Fill the footprint from the desk just outside it: at its front edge from the desk in front, at its back edge from the desk behind,
+          // blended in between, so the fill meets the surrounding desk on both sides.
+          float yF=-0.0595,yB=0.0455;
+          vec3 ay=vec3(0.05069,0.0,-0.99871);
+          vec3 dF=(yF-rl.y)*ay,dB=(yB-rl.y)*ay;
+          vec2 uF=dUx*((dot(dF,dPx)*g22-dot(dF,dPy)*g12)/det)+dUy*((g11*dot(dF,dPy)-g12*dot(dF,dPx))/det);
+          vec2 uB=dUx*((dot(dB,dPx)*g22-dot(dB,dPy)*g12)/det)+dUy*((g11*dot(dB,dPy)-g12*dot(dB,dPx))/det);
+          float ty=clamp((rl.y-yF)/(yB-yF),0.0,1.0);
+          vec3 e2=emissive*mix(texture2D(emissiveMap,vEmissiveMapUv+uF).rgb,texture2D(emissiveMap,vEmissiveMapUv+uB).rgb,ty);
+          totalEmissiveRadiance=mix(totalEmissiveRadiance,e2,rmw);
+        }
+        #endif`.replace("DG_K",DG_K.toFixed(2)));
   };
   m.customProgramCacheKey=()=>"pcw_Room_Desk_dg";
   m.needsUpdate=true;
@@ -189,7 +215,112 @@ function heal(m){
   m.needsUpdate=true;
 }
 
-const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.glb":"sakina-room-agx-both.glb",g=>{
+// Lamps: click the desk lamp or the standing lamp to switch it off / on. The room light is baked, so a switched-off lamp is done in the
+// shader: every baked material multiplies its final colour by a factor that depends on how far the pixel is from each lamp and
+// whether that lamp is on (a little of the baked light is kept everywhere, so the room goes dark but stays readable). Both on = factor 1,
+// i.e. exactly the approved look. The shadow lights are only drawn for shadows, so they are not touched (no shader recompile).
+const lampU={uLamp:{value:new THREE.Vector2(1,1)}};
+// The standing lamp is moved a little to the left, toward the room centre and away from the right wall (user request): metres in room coordinates.
+// Only its geometry moves (shiftStandingLamp); its baked glow on the wall stays where the bake put it.
+const LS={x:-0.25,z:0},LAMP_AXIS={x:2.21,z:-0.96};
+const lamps={
+  desk:{on:true,v:1,name:"DESK LAMP",light:null},
+  floor:{on:true,v:1,name:"STANDING LAMP",light:null}
+};
+const lampShadow={mat:null,base:0};
+let lampDirty=false;
+const LAMP_DARK={Room_Window:0.42,Room_Monitor:0.28};
+function lampDim(m,name){
+  if(!m||m.userData.lampDim)return;m.userData.lampDim=true;
+  const prev=m.onBeforeCompile,prevKey=m.customProgramCacheKey;
+  const dark=(LAMP_DARK[name]??0.14).toFixed(3);
+  m.onBeforeCompile=(sh,r)=>{
+    if(prev)prev.call(m,sh,r);
+    sh.uniforms.uLamp=lampU.uLamp;
+    sh.vertexShader=sh.vertexShader.replace("#include <common>","#include <common>\nvarying vec3 vWPl;")
+      .replace("#include <begin_vertex>","#include <begin_vertex>\nvWPl=(modelMatrix*vec4(transformed,1.0)).xyz;");
+    sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nvarying vec3 vWPl;uniform vec2 uLamp;")
+      .replace("#include <opaque_fragment>",`{
+        vec3 la=vWPl-vec3(-0.4,1.0,-2.17),lb=vWPl-vec3(${(LAMP_AXIS.x+LS.x).toFixed(3)},1.3,${(LAMP_AXIS.z+LS.z).toFixed(3)});
+        float wa=1.0/(0.4+dot(la,la)),wb=1.0/(0.4+dot(lb,lb));
+        float loc=(wa*uLamp.x+wb*uLamp.y)/(wa+wb);
+        float lit=mix(0.5*(uLamp.x+uLamp.y),loc,0.7);
+        outgoingLight*=mix(${dark},1.0,lit);
+      }
+      #include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey=()=>"lamp_"+name+"_"+(prevKey?prevKey.call(m):(prev?prev.toString():""));
+  m.needsUpdate=true;
+}
+const lampHits=[],lampHitGeo={};
+function shiftStandingLamp(){
+  const m=meshes.Room_Right_Nook;if(!m||!m.geometry.index)return;
+  m.updateWorldMatrix(true,false);
+  const g=m.geometry,pos=g.attributes.position,idx=g.index.array,n=pos.count;
+  const par=new Int32Array(n);for(let i=0;i<n;i++)par[i]=i;
+  const find=a=>{while(par[a]!==a){par[a]=par[par[a]];a=par[a]}return a};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[b]=a};
+  for(let i=0;i<idx.length;i+=3){uni(idx[i],idx[i+1]);uni(idx[i],idx[i+2])}
+  // a connected piece belongs to the lamp when all of it lies within 0.28 m of the lamp axis and below 1.85 m
+  const bad=new Set(),v=new THREE.Vector3(),w=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);w[i*3]=v.x;w[i*3+1]=v.y;w[i*3+2]=v.z;
+    if(Math.hypot(v.x-LAMP_AXIS.x,v.z-LAMP_AXIS.z)>0.28||v.y>1.85)bad.add(find(i));
+  }
+  const p0=new THREE.Vector3(LAMP_AXIS.x,0,LAMP_AXIS.z),p1=new THREE.Vector3(LAMP_AXIS.x+LS.x,0,LAMP_AXIS.z+LS.z);
+  const d=m.worldToLocal(p1.clone()).sub(m.worldToLocal(p0.clone()));
+  let moved=0;
+  for(let i=0;i<n;i++){
+    if(bad.has(find(i)))continue;
+    if(Math.hypot(w[i*3]-LAMP_AXIS.x,w[i*3+2]-LAMP_AXIS.z)>0.28)continue;
+    pos.setXYZ(i,pos.getX(i)+d.x,pos.getY(i)+d.y,pos.getZ(i)+d.z);moved++;
+  }
+  pos.needsUpdate=true;g.computeBoundingSphere();g.computeBoundingBox();
+  console.log("standing lamp moved:",moved,"vertices by",LS.x,LS.z);
+  // click shape = the lamp's own triangles (a copy in world space), so only the lamp itself reacts, not the space around it
+  const hp=[],near=i=>!bad.has(find(i))&&Math.hypot(w[i*3]-LAMP_AXIS.x,w[i*3+2]-LAMP_AXIS.z)<=0.28;
+  m.updateWorldMatrix(true,false);
+  for(let t=0;t<idx.length;t+=3){
+    if(!(near(idx[t])&&near(idx[t+1])&&near(idx[t+2])))continue;
+    for(let k=0;k<3;k++){v.fromBufferAttribute(pos,idx[t+k]).applyMatrix4(m.matrixWorld);hp.push(v.x,v.y,v.z)}
+  }
+  if(hp.length>=9*30){const hg=new THREE.BufferGeometry();hg.setAttribute("position",new THREE.Float32BufferAttribute(hp,3));hg.computeBoundingSphere();lampHitGeo.floor=hg}
+  else console.warn("standing lamp hit shape not found",hp.length/9);
+}
+function setupLamps(){
+  try{shiftStandingLamp()}catch(e){console.warn("lamp shift failed",e)}
+  for(const [n,o] of Object.entries(meshes))lampDim(o.material,n);
+  const hm=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false});
+  const add=(id,geo,x,y,z)=>{const h=new THREE.Mesh(geo,hm);h.position.set(x,y,z);h.name="LampHit_"+id;h.userData.lamp=id;h.frustumCulled=false;scene.add(h);lampHits.push(h)};
+  // Click shapes follow the lamps' real geometry (the desk lamp is its own mesh, Room_Lamp, picked directly in pick()). The standing lamp uses a
+  // copy of its own triangles plus a slim cylinder for the thin pole. Nothing here covers the space around a lamp.
+  const hm2=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false,side:THREE.DoubleSide});
+  if(lampHitGeo.floor){const h=new THREE.Mesh(lampHitGeo.floor,hm2);h.name="LampHit_floor";h.userData.lamp="floor";h.frustumCulled=false;scene.add(h);lampHits.push(h)}
+  else add("floor",new THREE.CylinderGeometry(0.2,0.2,0.5,20),LAMP_AXIS.x+LS.x,1.53,LAMP_AXIS.z+LS.z);
+  add("floor",new THREE.CylinderGeometry(0.035,0.035,1.30,8),LAMP_AXIS.x+LS.x,0.65,LAMP_AXIS.z+LS.z);
+}
+function toggleLamp(id){
+  const L=lamps[id];if(!L)return;
+  L.on=!L.on;sfx.lamp(L.on);
+  if(reduced)L.v=L.on?1:0;
+  lampDirty=true;
+  const h=$("hint");if(h.classList.contains("show"))h.textContent=tipFor3d({kind:"lamp",id});
+  nudge(L.name+(L.on?" ON":" OFF"));
+}
+function stepLamps(now){
+  const dt=Math.min(0.1,(now-(stepLamps.t||now))/1000);stepLamps.t=now;
+  let ch=!stepLamps.init||lampDirty;stepLamps.init=true;lampDirty=false;
+  for(const L of Object.values(lamps)){
+    const g=L.on?1:0;
+    if(L.v!==g){L.v+=(g-L.v)*Math.min(1,dt*6);if(Math.abs(g-L.v)<0.004)L.v=g;ch=true}
+  }
+  if(!ch)return;
+  const sm=v=>v*v*(3-2*v);
+  lampU.uLamp.value.set(sm(lamps.desk.v),sm(lamps.floor.v));
+  if(lampShadow.mat)lampShadow.mat.opacity=lampShadow.base*0.5*(lamps.desk.v+lamps.floor.v);
+}
+
+const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-pad-m.glb":"sakina-room-agx-both-pad.glb",g=>{
   const maxAniso=renderer.capabilities.getMaxAnisotropy();
   g.scene.traverse(o=>{
     if(!o.isMesh)return;
@@ -227,9 +358,10 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.gl
   for(const [n,m] of Object.entries(meshes)){m.castShadow=!["Room_Shell","Room_Floor","Room_Lamp"].includes(n)}
   const mkLight=(x,y,z,far)=>{const l=new THREE.PointLight(0xffffff,0.0001,far,1);l.position.set(x,y,z);l.castShadow=true;
     l.shadow.mapSize.set(1536,1536);l.shadow.radius=7;l.shadow.bias=-0.0006;l.shadow.normalBias=0.02;l.shadow.camera.near=0.05;scene.add(l);return l};
-  mkLight(-0.4,1.06,-2.17,9);          // desk lamp (Blender L1 -0.4, 2.17, 1.06)
-  mkLight(2.21,1.6,-0.96,9);           // floor lamp (Blender L3 2.21, 0.96, 1.6)
+  lamps.desk.light=mkLight(-0.4,1.06,-2.17,9);          // desk lamp (Blender L1 -0.4, 2.17, 1.06)
+  lamps.floor.light=mkLight(LAMP_AXIS.x+LS.x,1.6,LAMP_AXIS.z+LS.z,9);           // floor lamp (Blender L3 2.21, 0.96, 1.6)
   const shadowMat=new THREE.ShadowMaterial({color:0x14080a,opacity:shOpacity,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+  lampShadow.mat=shadowMat;lampShadow.base=shOpacity;
   for(const n of ["Room_Shell","Room_Floor"]){
     const src=meshes[n];if(!src)continue;
     const r=new THREE.Mesh(src.geometry,shadowMat);r.position.copy(src.position);r.quaternion.copy(src.quaternion);r.scale.copy(src.scale);
@@ -250,11 +382,13 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.gl
     const p=new THREE.Mesh(new THREE.PlaneGeometry(2.0,2.0),m);p.rotation.y=Math.PI/2;p.position.set(-2.99,1.7,-1.5);p.renderOrder=1;p.name="LeafShadows";scene.add(p);
   }
   {
-    const t=new THREE.TextureLoader().load("sakina-photo.jpg");t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
-    const card=new THREE.Mesh(new THREE.PlaneGeometry(0.088,0.106),new THREE.MeshBasicMaterial({color:0xe2dfd8,transparent:true,depthWrite:false}));
-    card.rotation.y=Math.PI/2;card.position.set(-2.6475,0.8735,-1.354);card.renderOrder=3;card.name="PolaroidCard";scene.add(card);
-    const p=new THREE.Mesh(new THREE.PlaneGeometry(0.0716,0.0891),new THREE.MeshBasicMaterial({map:t,color:0xcfc2b0,transparent:true,depthWrite:false}));
-    p.rotation.y=Math.PI/2;p.position.set(-2.6465,0.8795,-1.354);p.renderOrder=3.1;p.name="PolaroidPhoto";scene.add(p);
+    const t=new THREE.TextureLoader().load("sakina-photo.jpg");t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=16;
+    // Drawn on top (depthTest off) so the monitor casing never cuts into it while orbiting; it covers the baked grey card underneath. photo 480x597 (ratio .804). Border 3 mm on every side; card = photo + border. Bigger than before (photo 100 mm wide, was 71.6 mm).
+    const PW=0.100,PHT=PW*597/480,B=0.003,CW=PW+2*B,CH=PHT+2*B,CZ=-1.362,CY=0.8205+CH/2;
+    const card=new THREE.Mesh(new THREE.PlaneGeometry(CW,CH),new THREE.MeshBasicMaterial({color:0xf4f1ea,depthWrite:false,depthTest:false}));
+    card.rotation.y=Math.PI/2;card.position.set(-2.6475,CY,CZ);card.renderOrder=30;card.name="PolaroidCard";scene.add(card);
+    const p=new THREE.Mesh(new THREE.PlaneGeometry(PW,PHT),new THREE.MeshBasicMaterial({map:t,color:0xf2ede4,depthWrite:false,depthTest:false}));
+    p.rotation.y=Math.PI/2;p.position.set(-2.6465,CY,CZ);p.renderOrder=31;p.name="PolaroidPhoto";scene.add(p);
   }
   scene.add(g.scene);res();
 },e=>{if(e.lengthComputable){progressRoom=e.loaded/e.total;setProgress()}},rej));
@@ -275,9 +409,9 @@ const roomP=new Promise((res,rej)=>loader.load(COARSE?"sakina-room-agx-both-m.gl
 const outP=new Promise((res,rej)=>loader.load("sakina-outside-r4lo.glb",g=>{g.scene.position.y=-10;scene.add(g.scene);res()},
   e=>{if(e.lengthComputable){progressOut=e.loaded/e.total;setProgress()}},rej));
 
-const VIEW_ZOOM=parseFloat(new URLSearchParams(location.search).get("vz")||"2.3");
+const VIEW_ZOOM=parseFloat(new URLSearchParams(location.search).get("vz")||"1");
 // Berlin rail-yard night photo behind the window (round 4, approved): two unlit emissive pictures ~80 m away (photo patch + panorama).
-const viewP=new Promise(res=>loader.load("sakina-view-r4lo.glb",g=>{
+const viewP=new Promise(res=>loader.load("sakina-view-r10.glb",g=>{
   g.scene.traverse(o=>{if(o.isMesh){o.material.side=THREE.DoubleSide;o.material.envMapIntensity=0;o.renderOrder=-1}});
   {const b=new THREE.Box3().setFromObject(g.scene),c=b.getCenter(new THREE.Vector3());g.scene.scale.setScalar(VIEW_ZOOM);g.scene.position.copy(c).multiplyScalar(1-VIEW_ZOOM)}
   scene.add(g.scene);
@@ -367,7 +501,7 @@ const crtScreen=(()=>{
   const draw=t=>{
     g.setTransform(1,0,0,1,0,0);g.setTransform(K,0,0,K,0,0);
     if(mode==="loading"&&!document.getElementById("crt-gate")){lastAct=performance.now();setMode("name",lastAct)}
-    if(mode==="name"&&performance.now()-lastAct>6000)setMode("tape",performance.now());
+    if(mode==="name"&&performance.now()-lastAct>8000)setMode("tape",performance.now());
     if(mode==="loading"){
       paintBg(g);osd("▶▶ LOADING",60,82);osd("CH 00",900,82,"right");
       g.font="44px VT323";g.textAlign="left";g.fillStyle="#f4f5ff";
@@ -409,6 +543,9 @@ const crtScreen=(()=>{
   start();
   addEventListener("keydown",poke);
   canvas.addEventListener("pointerdown",poke);
+  // The gate takes a second to fade out, and the "LOADING" screen used to show through it before the name screen took over.
+  // The name screen now starts the moment the visitor enters, so the loading screen is never seen.
+  addEventListener("crt-enter",()=>{lastAct=performance.now();setMode("name",lastAct);draw(performance.now())});
   return {u,draw,mesh};
 })();
 const crtLive=crtScreen.u;
@@ -467,7 +604,7 @@ const rainU={uTime:{value:0}};
 }
 
 // Steam over the coffee. Mug_Coffee surface: three.js x -0.236, y 0.809, z -1.883. The Blender steam curves are not exported.
-const steamU={uTime:{value:0},uPx:{value:700}};
+const steamU={uTime:{value:0},uPx:{value:700},uK:{value:1}};
 {
   const N=36,pos=new Float32Array(N*3),seed=new Float32Array(N*4);
   for(let i=0;i<N;i++){seed[i*4]=Math.random();seed[i*4+1]=Math.random();seed[i*4+2]=Math.random();seed[i*4+3]=Math.random()}
@@ -475,7 +612,7 @@ const steamU={uTime:{value:0},uPx:{value:700}};
   g.setAttribute("position",new THREE.BufferAttribute(pos,3));
   g.setAttribute("seed",new THREE.BufferAttribute(seed,4));
   const m=new THREE.ShaderMaterial({uniforms:steamU,transparent:true,depthWrite:false,
-    vertexShader:`uniform float uTime,uPx;attribute vec4 seed;varying float vA;
+    vertexShader:`uniform float uTime,uPx,uK;attribute vec4 seed;varying float vA;
       void main(){
         float life=3.4+seed.x*1.6;float ph=fract(uTime/life+seed.y);
         float h=ph*0.2;
@@ -485,12 +622,379 @@ const steamU={uTime:{value:0},uPx:{value:700}};
         vec4 mv=viewMatrix*vec4(p,1.0);
         gl_Position=projectionMatrix*mv;
         gl_PointSize=uPx*(0.02+ph*0.06+seed.x*0.012)/-mv.z;
-        vA=smoothstep(0.,.14,ph)*(1.-smoothstep(.45,1.,ph))*(.5+seed.x*.5);
+        vA=smoothstep(0.,.14,ph)*(1.-smoothstep(.45,1.,ph))*(.5+seed.x*.5)*uK;
       }`,
     fragmentShader:`varying float vA;
       void main(){float d=length(gl_PointCoord-.5)*2.;float a=smoothstep(1.,0.,d);a*=a;gl_FragColor=vec4(vec3(.95,.92,.88),a*vA*.4);}`});
   const pts=new THREE.Points(g,m);pts.frustumCulled=false;pts.renderOrder=2;scene.add(pts);
 }
+
+// The mug on the desk: a click is a sip (soft slurp) and the coffee goes down a little, six sips to an empty cup (a reload refills it).
+// The coffee surface (a flat disc, measured from the baked desk mesh) is cut out of Room_Desk and drawn as its own disc that sinks and
+// narrows with the cup, lit like the original but darker the deeper it goes. The steam weakens with the coffee.
+const MUG={top:0.8081,floor:0.7365,sips:6,film:0.004,cx:-0.2359,cz:-1.8832,rTop:0.0445};
+const mug={disc:null,hit:null,left:MUG.sips,level:MUG.top,goal:MUG.top,last:0,base:1};
+const mugRin=y=>0.0295+(y-0.736)/0.084*0.0135;   // inner radius of the cup at height y
+function setupMug(){
+  const src=meshes.Room_Desk;if(!src||mug.disc)return;
+  const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!UV||!N)return;
+  src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+  const v=[new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()],e1=new THREE.Vector3(),e2=new THREE.Vector3(),ia=I.array,keep=[],take=[];
+  for(let t=0;t<ia.length;t+=3){
+    let y0=1e9,y1=-1e9,cx=0,cz=0;
+    for(let k=0;k<3;k++){v[k].fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);y0=Math.min(y0,v[k].y);y1=Math.max(y1,v[k].y);cx+=v[k].x/3;cz+=v[k].z/3}
+    let coffee=false;
+    if(y0>0.8070&&y1<0.8092&&Math.hypot(cx-MUG.cx,cz-MUG.cz)<MUG.rTop){e1.subVectors(v[1],v[0]);e2.subVectors(v[2],v[0]);e1.cross(e2);coffee=Math.abs(e1.y)>0.9*e1.length()}
+    (coffee?take:keep).push(ia[t],ia[t+1],ia[t+2]);
+  }
+  if(take.length<900){console.warn("mug: coffee surface not found",take.length/3);return}
+  const n=take.length,pos=new Float32Array(n*3),nor=new Float32Array(n*3),uvs=new Float32Array(n*2),w=new THREE.Vector3();
+  let sx=0,sz=0;
+  for(let i=0;i<n;i++){w.fromBufferAttribute(P,take[i]).applyMatrix4(M);pos[i*3]=w.x;pos[i*3+1]=w.y;pos[i*3+2]=w.z;sx+=w.x;sz+=w.z;
+    w.fromBufferAttribute(N,take[i]).applyMatrix3(NM).normalize();nor[i*3]=w.x;nor[i*3+1]=w.y;nor[i*3+2]=w.z;
+    uvs[i*2]=UV.getX(take[i]);uvs[i*2+1]=UV.getY(take[i])}
+  const cx=sx/n,cz=sz/n;
+  for(let i=0;i<n;i++){pos[i*3]-=cx;pos[i*3+1]-=MUG.top;pos[i*3+2]-=cz}
+  const gd=new THREE.BufferGeometry();
+  gd.setAttribute("position",new THREE.BufferAttribute(pos,3));gd.setAttribute("normal",new THREE.BufferAttribute(nor,3));gd.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+  g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+  const mat=src.material.clone();mat.onBeforeCompile=()=>{};if(src.material.envMap)mat.envMap=src.material.envMap;envReady.then(t=>{mat.envMap=t;mat.needsUpdate=true});
+  lampDim(mat,"MugCoffee");
+  mug.base=mat.emissiveIntensity??1;
+  const d=new THREE.Mesh(gd,mat);d.position.set(cx,MUG.top,cz);d.frustumCulled=false;d.name="MugCoffee";scene.add(d);mug.disc=d;
+  const h=new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.052,0.11,16),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+  h.position.set(cx,0.775,cz);h.name="MugHit";scene.add(h);mug.hit=h;
+  console.log("mug: coffee disc",take.length/3,"triangles");
+}
+// Pencil holder: click it and the pencils turn inside the cup. The sticks (everything that stands out of the cup within 7.5 cm of its axis)
+// are cut out of Room_Desk into their own small mesh at load; it turns about the cup's vertical axis, so they stay inside the cup.
+const PENCIL_AXIS={x:-0.700,z:-1.940,y:0.72,rMax:0.075,yCup:0.830};
+const pencils={mesh:null,hit:null,ang:0,goal:0,last:0};
+function setupPencils(){
+  const src=meshes.Room_Desk;if(!src||pencils.mesh)return;
+  const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!UV||!N)return;
+  src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+  const n=P.count,ia=I.array,par=new Int32Array(n);for(let i=0;i<n;i++)par[i]=i;
+  const find=a=>{while(par[a]!==a){par[a]=par[par[a]];a=par[a]}return a};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[b]=a};
+  for(let t=0;t<ia.length;t+=3){uni(ia[t],ia[t+1]);uni(ia[t],ia[t+2])}
+  // world positions, and per connected piece: furthest horizontal distance from the axis, lowest and highest point
+  const w=new Float32Array(n*3),v=new THREE.Vector3(),far=new Map(),lo=new Map(),hi=new Map();
+  for(let i=0;i<n;i++){
+    v.fromBufferAttribute(P,i).applyMatrix4(M);w[i*3]=v.x;w[i*3+1]=v.y;w[i*3+2]=v.z;
+    const r=find(i),d=Math.hypot(v.x-PENCIL_AXIS.x,v.z-PENCIL_AXIS.z);
+    if(!far.has(r)){far.set(r,d);lo.set(r,v.y);hi.set(r,v.y)}else{if(d>far.get(r))far.set(r,d);if(v.y<lo.get(r))lo.set(r,v.y);if(v.y>hi.get(r))hi.set(r,v.y)}
+  }
+  const isItem=r=>far.get(r)<=PENCIL_AXIS.rMax&&hi.get(r)>PENCIL_AXIS.yCup&&lo.get(r)>0.715&&hi.get(r)-lo.get(r)<0.3;
+  const keep=[],take=[];
+  for(let t=0;t<ia.length;t+=3)(isItem(find(ia[t]))?take:keep).push(ia[t],ia[t+1],ia[t+2]);
+  if(take.length<60){console.warn("pencils: sticks not found",take.length/3);return}
+  const m=take.length,pos=new Float32Array(m*3),nor=new Float32Array(m*3),uvs=new Float32Array(m*2),q=new THREE.Vector3();
+  for(let i=0;i<m;i++){
+    const k=take[i];pos[i*3]=w[k*3]-PENCIL_AXIS.x;pos[i*3+1]=w[k*3+1]-PENCIL_AXIS.y;pos[i*3+2]=w[k*3+2]-PENCIL_AXIS.z;
+    q.fromBufferAttribute(N,k).applyMatrix3(NM).normalize();nor[i*3]=q.x;nor[i*3+1]=q.y;nor[i*3+2]=q.z;
+    uvs[i*2]=UV.getX(k);uvs[i*2+1]=UV.getY(k);
+  }
+  const gd=new THREE.BufferGeometry();
+  gd.setAttribute("position",new THREE.BufferAttribute(pos,3));gd.setAttribute("normal",new THREE.BufferAttribute(nor,3));gd.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+  g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+  const mat=src.material.clone();mat.onBeforeCompile=()=>{};if(src.material.envMap)mat.envMap=src.material.envMap;envReady.then(t=>{mat.envMap=t;mat.needsUpdate=true});
+  lampDim(mat,"Pencils");
+  const d=new THREE.Mesh(gd,mat);d.position.set(PENCIL_AXIS.x,PENCIL_AXIS.y,PENCIL_AXIS.z);d.frustumCulled=false;d.name="PencilSticks";scene.add(d);pencils.mesh=d;
+  const h=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.22,16),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));
+  h.position.set(PENCIL_AXIS.x,0.82,PENCIL_AXIS.z);h.name="PencilHit";h.userData.pencils=true;scene.add(h);pencils.hit=h;
+  console.log("pencils: sticks",take.length/3,"triangles");
+}
+function spinPencils(){
+  if(!pencils.mesh)return;
+  pencils.goal+=Math.PI*2;sfx.pencils();
+  if(reduced)pencils.ang=pencils.goal;
+}
+function stepPencils(now){
+  if(!pencils.mesh)return;
+  const dt=Math.min(.1,(now-(pencils.last||now))/1000);pencils.last=now;
+  const d=pencils.goal-pencils.ang;if(d===0)return;
+  pencils.ang=Math.abs(d)<0.004?pencils.goal:pencils.ang+d*(1-Math.exp(-dt*3.4));
+  pencils.mesh.rotation.y=pencils.ang;
+}
+function stepMug(now){
+  if(!mug.disc)return;
+  const dt=Math.min(.1,(now-(mug.last||now))/1000);mug.last=now;
+  const d=mug.goal-mug.level;
+  mug.level=Math.abs(d)<1e-5?mug.goal:mug.level+d*Math.min(1,dt*(reduced?60:5));
+  const y=mug.level,s=Math.max(0.55,Math.min(1,mugRin(y)*0.955/0.0425)),f=Math.max(0,(y-MUG.floor-MUG.film)/(MUG.top-MUG.floor-MUG.film));
+  mug.disc.position.y=y;mug.disc.scale.set(s,1,s);
+  mug.disc.material.emissiveIntensity=mug.base*(1-0.55*(1-f));
+  steamU.uK.value=Math.pow(f,0.8);
+}
+function sipMug(){
+  if(!mug.disc)return;
+  if(mug.left<=0){sfx.sip(0);nudge("THE MUG IS EMPTY · RELOAD THE PAGE FOR A REFILL");return}
+  mug.left--;
+  mug.goal=MUG.floor+MUG.film+(MUG.top-MUG.floor-MUG.film)*mug.left/MUG.sips;
+  crtVideo.duck(Math.round((sfx.sip(1)||1.8)*1000)+300);
+  nudge(mug.left>0?"AHH. "+mug.left+(mug.left===1?" SIP":" SIPS")+" LEFT":"THAT WAS THE LAST SIP");
+}
+
+// The calculator on the desk. Its baked triangles (body, 25 keys, LCD glass) are cut out of Room_Desk and rebuilt as live meshes with the
+// SAME UVs and a clone of the same material, so at rest it looks exactly like the baked one. A click lifts it off the desk and holds it
+// face-on in front of the camera; every key works (mouse, touch or keyboard) and the LCD digits are drawn live on a canvas over the glass.
+// ESC, a click outside or PUT DOWN sets it back. The numbers stay until the page is reloaded.
+const CALC={cx:-0.67878,cz:-2.07877,y:0.72,yaw:8*Math.PI/180,L:0.122,ZF:0.010,TANS:0.06667,slope:Math.atan(0.06667)};
+const RZ0=0.0030;
+const CALC_ROWS=[["MC","MR","M-","M+","÷"],["%","7","8","9","×"],["√","4","5","6","−"],["C","1","2","3","+"],["AC","0","00",".","="]];
+const calc={group:null,body:null,keys:[],byLabel:{},mat:null,base:1,lcd:null,lcdCv:null,lcdTex:null,k:0,dir:0,t0:0,from:0,
+  s:{disp:"31415.92",acc:null,op:null,fresh:true,mem:0,err:false,last:null}};
+const calcScrim=document.createElement("div");calcScrim.id="calc-scrim";calcScrim.hidden=true;
+const calcClose=document.createElement("button");calcClose.type="button";calcClose.id="calc-close";calcClose.textContent="PUT DOWN · ESC";calcClose.hidden=true;
+document.body.append(calcScrim,calcClose);
+const calcOpen=()=>calc.dir===1;
+// The overlay pass runs after OutputPass, i.e. into an already sRGB-encoded picture, so while the calculator is in the overlay its colours must be
+// sRGB-encoded by hand. Otherwise it comes out far too dark and shows up darker than on the desk.
+const calcEnc={value:0};
+const calcEncode=sh=>{sh.uniforms.uEnc=calcEnc;sh.fragmentShader="uniform float uEnc;\n"+sh.fragmentShader.replace("#include <colorspace_fragment>","#include <colorspace_fragment>\n  if(uEnc>0.5){vec3 c_=clamp(gl_FragColor.rgb,0.0,1.0);gl_FragColor.rgb=mix(c_*12.92,pow(c_,vec3(1.0/2.4))*1.055-0.055,step(vec3(0.0031308),c_));}")};
+const calcScene=new THREE.Scene();
+const _cy=new THREE.Vector3(0,1,0),_cq=new THREE.Quaternion(),_cq2=new THREE.Quaternion(),_ce=new THREE.Euler();
+function setupCalc(){
+  const src=meshes.Room_Desk;if(!src||calc.group)return;
+  const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!N||!UV)return;
+  src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+  const c=Math.cos(CALC.yaw),s=Math.sin(CALC.yaw),ia=I.array,keep=[],body=[],keys=Array.from({length:25},()=>[]);
+  const v=new THREE.Vector3();let nCalc=0;
+  for(let t=0;t<ia.length;t+=3){
+    let wx=0,wz=0,wy=0,ux=0,uy=0;
+    for(let k=0;k<3;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);wx+=v.x/3;wy+=v.y/3;wz+=v.z/3;ux+=UV.getX(ia[t+k])/3;uy+=UV.getY(ia[t+k])/3}
+    const dx=wx-CALC.cx,dz=wz-CALC.cz,lx=dx*c+dz*s,lz=-dx*s+dz*c,ly=wy-CALC.y;
+    const mine=(ux>0.696&&ux<0.711&&uy>0.898&&uy<0.917)||(Math.abs(lx)<0.046&&Math.abs(lz)<0.063&&ly>0.0005);
+    if(!mine){keep.push(ia[t],ia[t+1],ia[t+2]);continue}
+    nCalc++;
+    if(Math.abs(lx)<0.036&&lz>-0.046&&lz<-0.025&&ly>0.01963)continue;            // the baked digits "31415.92": dropped, redrawn live
+    const r=Math.round((lz+RZ0)/0.0136),cc=Math.round(lx/0.0162);   // RZ0: local z of the first key row is -RZ0 (the baked keys sit one pitch lower than first assumed)
+    if(r>=0&&r<=4&&cc>=-2&&cc<=2&&Math.abs(lx-cc*0.0162)<0.0081&&Math.abs(lz-(-RZ0+r*0.0136))<0.0068&&ly>CALC.ZF+(0.061-lz)*CALC.TANS+0.0002){
+      // every corner must lie inside the same key cell: long triangles of the body plate that merely have their centre there stay in the body
+      let ok=true;
+      for(let k=0;k<3&&ok;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);const ex=v.x-CALC.cx,ez=v.z-CALC.cz,vx=ex*c+ez*s,vz=-ex*s+ez*c;
+        if(Math.abs(vx-cc*0.0162)>0.0095||Math.abs(vz-(-RZ0+r*0.0136))>0.0082)ok=false}
+      if(ok){keys[r*5+cc+2].push(ia[t],ia[t+1],ia[t+2]);continue}
+    }
+    body.push(ia[t],ia[t+1],ia[t+2]);
+  }
+  if(nCalc<8000||body.length<300){console.warn("calc: not found",nCalc);return}
+  const mkGeo=idx=>{
+    const n=idx.length,pos=new Float32Array(n*3),nor=new Float32Array(n*3),uvs=new Float32Array(n*2),w=new THREE.Vector3();
+    for(let i=0;i<n;i++){
+      w.fromBufferAttribute(P,idx[i]).applyMatrix4(M);w.x-=CALC.cx;w.y-=CALC.y;w.z-=CALC.cz;w.applyAxisAngle(_cy,CALC.yaw);
+      pos[i*3]=w.x;pos[i*3+1]=w.y;pos[i*3+2]=w.z;
+      w.fromBufferAttribute(N,idx[i]).applyMatrix3(NM).normalize().applyAxisAngle(_cy,CALC.yaw);
+      nor[i*3]=w.x;nor[i*3+1]=w.y;nor[i*3+2]=w.z;uvs[i*2]=UV.getX(idx[i]);uvs[i*2+1]=UV.getY(idx[i]);
+    }
+    const gg=new THREE.BufferGeometry();
+    gg.setAttribute("position",new THREE.BufferAttribute(pos,3));gg.setAttribute("normal",new THREE.BufferAttribute(nor,3));gg.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+    gg.computeBoundingSphere();gg.computeBoundingBox();return gg;
+  };
+  g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+  const mat=src.material;
+  // The calculator gets a copy of the desk material whose position-based tints (the healing and brightening patches around the desk) are
+  // computed from its REST position. So it keeps exactly the colour it has on the desk, wherever it is held.
+  const cm=mat.clone(),prevCm=mat.onBeforeCompile,restM=new THREE.Matrix4().makeTranslation(30,30,30);   // far from every desk tint zone: no healing/brightening patches act on the calculator
+  cm.onBeforeCompile=(sh,r)=>{
+    if(prevCm)prevCm.call(mat,sh,r);
+    sh.uniforms.uRestM={value:restM};
+    sh.vertexShader="uniform mat4 uRestM;\n"+sh.vertexShader.replace(/modelMatrix\*vec4\(transformed,1\.0\)/g,"uRestM*vec4(transformed,1.0)");
+    calcEncode(sh);
+  };
+  cm.customProgramCacheKey=()=>"calc_restm";cm.needsUpdate=true;
+  if(mat.envMap)cm.envMap=mat.envMap;envReady.then(t=>{if(SPEC.Room_Desk){cm.envMap=t;cm.needsUpdate=true}});
+  calc.mat=cm;
+  const grp=new THREE.Group();grp.position.set(CALC.cx,CALC.y,CALC.cz);grp.rotation.y=-CALC.yaw;grp.name="Calculator";
+  const bm=new THREE.Mesh(mkGeo(body),cm);bm.name="CalcBody";bm.castShadow=true;grp.add(bm);calc.body=bm;
+  keys.forEach((tri,i)=>{
+    if(!tri.length)return;const km=new THREE.Mesh(mkGeo(tri),cm);km.name="CalcKey";km.castShadow=true;
+    km.userData.label=CALC_ROWS[Math.floor(i/5)][i%5];km.userData.t0=-1e9;grp.add(km);calc.keys.push(km);calc.byLabel[km.userData.label]=km;
+  });
+  // the LCD digits, drawn on a canvas that lies just above the glass (the glass itself stays baked)
+  const cv=document.createElement("canvas");cv.width=700;cv.height=145;calc.lcdCv=cv;
+  const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;calc.lcdTex=tex;
+  const lm=new THREE.Mesh(new THREE.PlaneGeometry(0.07,0.0145),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,color:0xd8d2c0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  lm.material.onBeforeCompile=calcEncode;lm.material.customProgramCacheKey=()=>"calc_lcd";lm.material.color.setScalar(0.74);lm.rotation.x=-Math.PI/2;lm.position.set(0,0.0200,-0.035);lm.renderOrder=2;lm.name="CalcLcd";grp.add(lm);calc.lcd=lm;
+  // Where the calculator stood the baked desk is dark (its contact shadow). A thin patch with the same material re-uses clean texels of the same
+  // plank, shifted 17 cm along the grain, so grain lines run straight through the patch and the desk looks as if nothing stood there.
+  {
+    const hx=0.068,hz=0.085,cr=[[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]].map(([a,b])=>[CALC.cx+a*c-b*s,CALC.cz+a*s+b*c]);
+    const clip=(poly,zc,less)=>{const o=[],inside=q=>less?q[1]<=zc:q[1]>=zc;
+      for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],ia_=inside(a),ib=inside(b);
+        if(ia_)o.push(a);
+        if(ia_!==ib){const tt=(zc-a[1])/(b[1]-a[1]);o.push([a[0]+(b[0]-a[0])*tt,zc])}}
+      return o};
+    const planks=[[clip(cr,-2.0625,true),(x,z)=>[0.4483+(z+2.062)*0.14779,0.6411+(-0.142-(x-0.16))*0.14896]],[clip(cr,-2.0575,false),(x,z)=>[0.3627+(z+2.058)*0.14779,0.4856+(-0.422-(x-0.16))*0.14897]]];
+    const pos=[],uvs=[];
+    for(const [poly,uvf] of planks){
+      for(let i=1;i<poly.length-1;i++){
+        let tri=[poly[0],poly[i],poly[i+1]];
+        // the normal must point up (counter-clockwise seen from above)
+        if(((tri[1][0]-tri[0][0])*(tri[2][1]-tri[0][1])-(tri[2][0]-tri[0][0])*(tri[1][1]-tri[0][1]))<0)tri=[tri[0],tri[2],tri[1]];
+        for(const q of tri){pos.push(q[0],CALC.y+0.0006,q[1]);uvs.push(...uvf(q[0],q[1]))}
+      }
+    }
+    const pg=new THREE.BufferGeometry();pg.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+    pg.setAttribute("normal",new THREE.Float32BufferAttribute(pos.map((_,i)=>i%3===1?1:0),3));pg.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
+    // soft edges: the patch fades out over its last 1.6 cm so no rectangle shows (same shader chain as the desk, plus an alpha mask)
+    const pm=mat.clone(),prev=mat.onBeforeCompile;pm.transparent=true;pm.depthWrite=false;pm.polygonOffset=true;pm.polygonOffsetFactor=-2;pm.polygonOffsetUnits=-2;
+    pm.onBeforeCompile=(sh,r)=>{
+      if(prev)prev.call(mat,sh,r);sh.uniforms.uCalcP={value:new THREE.Vector4(CALC.cx,CALC.cz,c,s)};
+      sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec4 uCalcP;")
+        .replace("#include <emissivemap_fragment>",`#include <emissivemap_fragment>
+        vec2 cd_=vWP3.xz-uCalcP.xy;float clx=cd_.x*uCalcP.z+cd_.y*uCalcP.w,clz=-cd_.x*uCalcP.w+cd_.y*uCalcP.z;
+        diffuseColor.a*=(1.0-smoothstep(0.050,0.066,abs(clx)))*(1.0-smoothstep(0.067,0.083,abs(clz)));`);
+    };
+    pm.customProgramCacheKey=()=>"calc_patch";pm.needsUpdate=true;
+    const patch=new THREE.Mesh(pg,pm);patch.name="CalcPatch";patch.renderOrder=1;scene.add(patch);calc.patch=patch;
+  }
+  scene.add(grp);calc.group=grp;calcDraw();
+  console.log("calc: triangles",nCalc,"body",body.length/3,"keys",calc.keys.length);
+}
+// ---- the LCD ----
+const SEG7={"0":"abcdef","1":"bc","2":"abged","3":"abgcd","4":"fgbc","5":"afgcd","6":"afgedc","7":"abc","8":"abcdefg","9":"abcfgd","-":"g","E":"afged"};
+function calcDraw(){
+  if(!calc.lcdCv)return;
+  const cv=calc.lcdCv,g=cv.getContext("2d"),S=10000,X=x=>(x+0.035)*S,Yp=y=>(0.00725-y)*S;
+  // opaque pale LCD background: it also hides the faint stains of the old baked digits that are left in the glass texels
+  const bg=g.createLinearGradient(0,0,0,cv.height);bg.addColorStop(0,"#cdbf9d");bg.addColorStop(1,"#d9cba7");
+  g.fillStyle=bg;g.fillRect(0,0,cv.width,cv.height);g.fillStyle="rgba(24,28,22,.93)";
+  const rect=(x0,y0,x1,y1)=>g.fillRect(X(x0),Yp(y1),(x1-x0)*S,(y1-y0)*S);
+  const pitch=0.0079,cw=0.0059,ch=0.0098,t=0.00085;
+  const st=calc.s,txt=st.err?"E":st.disp,neg=txt.startsWith("-"),body=neg?txt.slice(1):txt;
+  const cells=[];                       // right to left: {ch, dp}
+  for(let i=body.length-1;i>=0;i--){if(body[i]===".")continue;cells.push({c:body[i],dp:body[i+1]==="."})}
+  cells.forEach((cell,i)=>{
+    const xr=0.031-i*pitch,x0=xr-cw,segs=SEG7[cell.c]||"";
+    const R={a:[x0+t,ch/2-t,xr-t,ch/2],g:[x0+t,-t/2,xr-t,t/2],d:[x0+t,-ch/2,xr-t,-ch/2+t],f:[x0,t/2,x0+t,ch/2-t],b:[xr-t,t/2,xr,ch/2-t],e:[x0,-ch/2+t,x0+t,-t/2],c:[xr-t,-ch/2+t,xr,-t/2]};
+    for(const k of segs){const r=R[k];rect(r[0],r[1],r[2],r[3])}
+    if(cell.dp)rect(xr+0.0005,-ch/2,xr+0.0013,-ch/2+0.0009);
+  });
+  if(neg)rect(-0.0345,-t/2,-0.0318,t/2);
+  if(st.mem!==0){g.font="bold 30px sans-serif";g.fillText("M",X(-0.0345),Yp(0.0058)+20)}
+  calc.lcdTex.needsUpdate=true;
+}
+// ---- the arithmetic (8 digits, like a pocket calculator) ----
+const calcFmt=v=>{
+  if(!isFinite(v)||Math.abs(v)>=1e8)return null;
+  let s=String(parseFloat(v.toPrecision(8)));
+  if(/e/i.test(s))s=v.toFixed(7);
+  const digits=s.replace(/[-.]/g,"").length;
+  if(digits>8){const ip=Math.trunc(Math.abs(v)).toString().length;s=v.toFixed(Math.max(0,8-ip))}
+  if(s.includes("."))s=s.replace(/0+$/,"").replace(/\.$/,"");
+  return s==="-0"?"0":s;
+};
+const calcNum=()=>parseFloat(calc.s.disp)||0;
+function calcShow(v){const f=calcFmt(v);if(f===null){calc.s.err=true;calc.s.disp="0"}else{calc.s.disp=f}}
+function calcApply(a,op,b){return op==="+"?a+b:op==="−"?a-b:op==="×"?a*b:op==="÷"?(b===0?Infinity:a/b):b}
+function calcPress(label){
+  const s=calc.s;
+  if(s.err&&label!=="AC"&&label!=="C")return;
+  if(/^[0-9]$/.test(label)||label==="00"||label==="."){
+    if(s.err)return;
+    if(s.fresh){s.disp=label==="."?"0.":label==="00"?"0":label;s.fresh=false}
+    else{
+      const dg=s.disp.replace(/[-.]/g,"").length;
+      if(label==="."){if(!s.disp.includes("."))s.disp+="."}
+      else if(dg<8){if(s.disp==="0")s.disp=label==="00"?"0":label;else s.disp+=(label==="00"&&dg>6?"0":label)}
+    }
+  }else if(label==="+"||label==="−"||label==="×"||label==="÷"){
+    if(s.op&&!s.fresh){const r=calcApply(s.acc,s.op,calcNum());calcShow(r);s.acc=s.err?null:parseFloat(s.disp)}
+    else s.acc=calcNum();
+    s.op=label;s.fresh=true;
+  }else if(label==="="){
+    if(s.op){const b=s.fresh&&s.last!==null&&s.acc!==null?s.last:calcNum(),r=calcApply(s.acc!==null?s.acc:calcNum(),s.op,b);s.last=b;calcShow(r);s.acc=s.err?null:parseFloat(s.disp);s.fresh=true}
+  }else if(label==="%"){
+    const x=calcNum();let r=x/100;
+    if(s.op&&s.acc!==null){
+      if(s.op==="+"||s.op==="−"){r=s.acc*x/100;calcShow(r);s.fresh=false}                       // 200 + 10 %  ->  20, then = gives 220
+      else{r=s.op==="×"?s.acc*x/100:(x===0?Infinity:s.acc/(x/100));calcShow(r);s.acc=null;s.op=null;s.fresh=true}   // 5 × 5 %  ->  0.25
+    }else{calcShow(r);s.fresh=false}
+  }else if(label==="√"){
+    const x=calcNum();if(x<0)s.err=true;else{calcShow(Math.sqrt(x));s.fresh=true}
+  }else if(label==="C"){s.err=false;s.disp="0";s.fresh=true}
+  else if(label==="AC"){Object.assign(s,{disp:"0",acc:null,op:null,fresh:true,err:false,last:null})}
+  else if(label==="MC"){s.mem=0}
+  else if(label==="MR"){calcShow(s.mem);s.fresh=true}
+  else if(label==="M+"){s.mem+=calcNum();s.fresh=true}
+  else if(label==="M-"){s.mem-=calcNum();s.fresh=true}
+  if(label!=="="&&(label==="+"||label==="−"||label==="×"||label==="÷"))s.last=null;
+  calcDraw();
+}
+function calcKey(label){
+  const km=calc.byLabel[label];if(km)km.userData.t0=performance.now();
+  sfx.calcKey(label==="="||label==="AC"||label==="C");
+  calcPress(label);
+}
+const CALC_KEYMAP={"0":"0","1":"1","2":"2","3":"3","4":"4","5":"5","6":"6","7":"7","8":"8","9":"9",".":".",",":".","+":"+","-":"−","*":"×","x":"×","/":"÷","Enter":"=","=":"=","%":"%","c":"C","a":"AC","r":"√","Delete":"C"};
+addEventListener("keydown",e=>{
+  if(!calcOpen()||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key==="Escape"){e.stopImmediatePropagation();e.preventDefault();dropCalc();return}
+  if(e.key==="Backspace"){
+    e.stopImmediatePropagation();e.preventDefault();
+    const s=calc.s;if(!s.fresh&&!s.err){s.disp=s.disp.length>1&&!(s.disp.length===2&&s.disp[0]==="-")?s.disp.slice(0,-1):"0";if(s.disp.endsWith("."))s.disp=s.disp.slice(0,-1)||"0";calcDraw();sfx.calcKey(false)}
+    return;
+  }
+  const lab=CALC_KEYMAP[e.key]||CALC_KEYMAP[e.key.toLowerCase()];
+  e.stopImmediatePropagation();                    // nothing else on the page reacts to typing while the calculator is in your hand
+  if(e.key==="Tab")return;
+  e.preventDefault();if(lab&&!e.repeat)calcKey(lab);
+},true);
+// ---- lift and put back ----
+function openCalc(){
+  if(!calc.group||calcOpen())return;
+  dropPad();notebook?.stop();
+  calcScrim.hidden=false;calcClose.hidden=false;
+  requestAnimationFrame(()=>{calcClose.classList.add("on")});
+  document.documentElement.classList.add("calc-open");
+  calcScene.add(calc.group);calcPass.enabled=true;calcEnc.value=1;
+  Object.assign(calc,{dir:1,t0:performance.now(),from:calc.k});
+  $("hint").classList.remove("show");
+}
+function dropCalc(){
+  if(!calcOpen())return;
+  calcClose.classList.remove("on");document.documentElement.classList.remove("calc-open");
+  Object.assign(calc,{dir:-1,t0:performance.now(),from:calc.k});
+}
+const _cf=new THREE.Vector3(),_cr=new THREE.Vector3(),_cu=new THREE.Vector3(),_ctp=new THREE.Vector3(),_ctq=new THREE.Quaternion();
+const _cRx=new THREE.Quaternion(),_cRy=new THREE.Quaternion(),_cX=new THREE.Vector3(1,0,0);
+function stepCalc(now){
+  if(!calc.group)return;
+  // key travel
+  for(const km of calc.keys){const a=(now-km.userData.t0)/170;km.position.y=a<1?-0.0009*Math.sin(Math.PI*a):0}
+  if(!calc.dir)return;
+  const dur=reduced?1:1100,p=Math.min(1,(now-calc.t0)/dur),target=calc.dir>0?1:0,sp=calc.from+(target-calc.from)*p;
+  calc.k=sp<.5?4*sp*sp*sp:1-Math.pow(-2*sp+2,3)/2;
+  camera.updateMatrixWorld();camera.getWorldDirection(_cf);_cr.crossVectors(_cf,camera.up).normalize();_cu.crossVectors(_cr,_cf);
+  const th=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),asp=innerWidth/innerHeight;
+  const D=Math.min(0.9,Math.max(0.2,CALC.L/(0.56*2*th),0.088/(0.74*2*th*asp)));
+  _ctp.copy(camera.position).addScaledVector(_cf,D).addScaledVector(_cr,(2*shiftPx/innerWidth)*D*th*asp).addScaledVector(_cu,0.07*D*th);
+  _cRx.setFromAxisAngle(_cX,Math.PI/2-CALC.slope-0.16);_cRy.setFromAxisAngle(_cy,-0.09);
+  _ctq.copy(camera.quaternion).multiply(_cRy).multiply(_cRx);
+  _cq.setFromAxisAngle(_cy,-CALC.yaw);
+  calc.group.position.lerpVectors(new THREE.Vector3(CALC.cx,CALC.y,CALC.cz),_ctp,calc.k);
+  calc.group.position.y+=Math.sin(Math.PI*calc.k)*0.07;
+  calc.group.quaternion.slerpQuaternions(_cq,_ctq,calc.k);
+  if(p>=1){
+    if(calc.dir<0){calc.group.position.set(CALC.cx,CALC.y,CALC.cz);calc.group.quaternion.copy(_cq);calcScrim.hidden=true;scene.add(calc.group);calcPass.enabled=false;calcEnc.value=0;calcClose.hidden=true;calc.k=0;calc.dir=0}
+    else calc.t0=-Infinity;
+  }
+}
+const _crc=new THREE.Raycaster(),_crp=new THREE.Vector2();
+function calcHit(ev){
+  if(!calc.group)return null;
+  _crp.set((ev.clientX/innerWidth)*2-1,-(ev.clientY/innerHeight)*2+1);_crc.setFromCamera(_crp,camera);
+  return _crc.intersectObjects([calc.body,...calc.keys],false)[0]||null;
+}
+calcScrim.addEventListener("click",ev=>{
+  if(!calcOpen()||calc.k<0.85)return;
+  const h=calcHit(ev);
+  if(!h)dropCalc();else if(h.object.name==="CalcKey")calcKey(h.object.userData.label);
+});
+calcScrim.addEventListener("pointermove",ev=>{if(calcOpen()&&calc.k>0.85){const h=calcHit(ev);calcScrim.style.cursor=h&&h.object.name==="CalcKey"?"pointer":h?"default":"pointer"}});
+calcClose.addEventListener("click",dropCalc);
 
 // Tape logos: the baked lightmap cannot hold them (each logo quad got a ~140x10 px lightmap island), so they are drawn as
 // textured quads over the baked label windows. Geometry and blend mode come from the Blender scene (pipeline/tools/export_logos.py).
@@ -565,7 +1069,7 @@ function buildViews(){
   VIEWS={
     home:{target:HOME.target.clone(),pos:HOME.pos.clone()},
     tapes:{...fT,shift:(sideT+40)/2},
-    ibm:{target:new THREE.Vector3(-2.72,0.84,-1.2),pos:new THREE.Vector3(-1.78,0.97,-1.2)},
+    ibm:{target:new THREE.Vector3(-2.72,0.86,-1.2),pos:new THREE.Vector3(-2.2,0.95,-1.2)},   // closer (was 0.94 m, now 0.52 m) so the 40-column screen reads like the reference
     clocks:{target:new THREE.Vector3(-1.8,2.1,-2.55),pos:new THREE.Vector3(-1.0,1.5,-0.5)},
     notepad:{target:new THREE.Vector3(-0.385,0.739,-1.84),pos:new THREE.Vector3(-0.385,1.14,-1.63)},
     work:{...fP,shift:(sideP+40)/2},
@@ -575,6 +1079,10 @@ function buildViews(){
   };
   {const wt=TV0.clone().add(new THREE.Vector3(0.05,-0.055,0)),wd=0.88*Math.max(1,Math.tan(THREE.MathUtils.degToRad(FOV/2))*1.3/(tv*a));
    VIEWS.watch={target:wt,pos:wt.clone().add(new THREE.Vector3(-0.09,0.07,1).normalize().multiplyScalar(wd))}}
+  {const tt=new THREE.Vector3(1.16,0.835,-1.88);VIEWS.trophy={target:tt.clone(),pos:tt.clone().add(new THREE.Vector3(0.05,0.11,0.5))}}
+  {const rt=new THREE.Vector3(0.89,0.765,-1.87);VIEWS.recorder={target:rt.clone(),pos:rt.clone().add(new THREE.Vector3(0.03,0.15,0.3))}}
+  {const pt=new THREE.Vector3(-1.0,0.75,-1.88);VIEWS.player={target:pt.clone(),pos:pt.clone().add(new THREE.Vector3(0.2,0.45,0.58))}}
+  {const dt=new THREE.Vector3(0.2,0.58,-1.55);VIEWS.drawer={target:dt.clone(),pos:dt.clone().add(new THREE.Vector3(0,0.82,0.34))}}
   if(phone){const pc=phone.frame.getCenter(new THREE.Vector3());VIEWS.phone={target:pc.clone().add(new THREE.Vector3(0,0,0.05)),pos:pc.clone().add(new THREE.Vector3(0,0,0.05)).add(new THREE.Vector3(0.02,0.85,0.55).normalize().multiplyScalar(0.8))}}
 }
 let shiftPx=0;
@@ -584,6 +1092,8 @@ let tween=null;
 function flyTo(name){
   const v=VIEWS[name];if(!v)return;
   if(name!=="phone"){phone?.release();phoneQuiet=false}
+  if(name!=="recorder")props?.stopRadio();
+  if(name!=="drawer"){deskProps?.setDrawer(false);deskProps?.hideCert()}
   crtVideo.away(name==="notepad");
   const from={p:camera.position.clone(),t:(controls.lookTarget.lengthSq()?controls.lookTarget:controls.target).clone(),s:shiftPx};
   const dur=reduced?1:1300;
@@ -600,7 +1110,7 @@ function stepTween(now){
   setShift(tween.from.s+((tween.to.shift||0)-tween.from.s)*e);
   camera.lookAt(controls.target);
   if(k>=1){
-    const wasHome=tween.name==="home";snap={name:tween.name,pos:tween.to.pos.clone()};tween=null;controls.enabled=true;controls.setFromCamera(wasHome);
+    const wasHome=tween.name==="home";snap={name:tween.name,pos:tween.to.pos.clone()};const arrivedAt=tween.name;tween=null;controls.enabled=true;controls.setFromCamera(wasHome);props?.arrived(arrivedAt);
   }
 }
 
@@ -702,7 +1212,49 @@ addEventListener("keydown",e=>{
   if(e.key==="Escape"&&padOpen()){e.stopImmediatePropagation();dropPad(true)}
 },true);
 
+// DEBUG on the computer: fly around the room. WASD / arrows move, Q and E go down and up, drag looks around, Shift is fast, Esc lands.
+const fly={on:false,yaw:0,pitch:0,keys:new Set(),last:0,drag:null};
+const FLY_BOX=new THREE.Box3(new THREE.Vector3(-2.8,0.4,-2.2),new THREE.Vector3(3.2,2.4,3.1));
+function flyStart(){
+  closePanel();notebook?.stop();dropPad();term.setActive(false);
+  tween=null;fly.on=true;controls.enabled=false;fly.keys.clear();fly.last=performance.now();
+  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,"YXZ");fly.yaw=e.y;fly.pitch=e.x;
+  document.documentElement.dataset.view="fly";
+  nudge("FLYING: WASD MOVE · Q/E DOWN/UP · DRAG TO LOOK · ESC TO LAND");
+}
+function flyStop(){
+  fly.on=false;fly.keys.clear();
+  const f=new THREE.Vector3(0,0,-1.5).applyQuaternion(camera.quaternion).add(camera.position);
+  controls.target.copy(f);controls.lookTarget.copy(f);
+}
+function stepFly(now){
+  const dt=Math.min(0.06,(now-fly.last)/1000);fly.last=now;
+  const k=fly.keys,sp=(k.has("ShiftLeft")||k.has("ShiftRight")?3.2:1.1)*dt;
+  const fwd=new THREE.Vector3(-Math.sin(fly.yaw)*Math.cos(fly.pitch),Math.sin(fly.pitch),-Math.cos(fly.yaw)*Math.cos(fly.pitch));
+  const right=new THREE.Vector3(Math.cos(fly.yaw),0,-Math.sin(fly.yaw));
+  const mv=new THREE.Vector3();
+  if(k.has("KeyW")||k.has("ArrowUp"))mv.add(fwd);if(k.has("KeyS")||k.has("ArrowDown"))mv.sub(fwd);
+  if(k.has("KeyD")||k.has("ArrowRight"))mv.add(right);if(k.has("KeyA")||k.has("ArrowLeft"))mv.sub(right);
+  if(k.has("KeyE")||k.has("Space"))mv.y+=1;if(k.has("KeyQ"))mv.y-=1;
+  if(mv.lengthSq())camera.position.addScaledVector(mv.normalize(),sp);
+  FLY_BOX.clampPoint(camera.position,camera.position);
+  camera.quaternion.setFromEuler(new THREE.Euler(fly.pitch,fly.yaw,0,"YXZ"));
+}
+addEventListener("keydown",e=>{
+  if(!fly.on||e.key==="Escape"||e.metaKey||e.ctrlKey||e.altKey||lofiDlg.open)return;
+  fly.keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();
+},true);
+addEventListener("keyup",e=>{if(fly.on)fly.keys.delete(e.code)},true);
+addEventListener("blur",()=>fly.keys.clear());
+canvas.addEventListener("pointermove",e=>{
+  if(!fly.on||!(e.buttons&1))return;
+  fly.yaw-=e.movementX*0.0042;fly.pitch=Math.max(-1.45,Math.min(1.45,fly.pitch-e.movementY*0.0042));
+});
+
 function go(name){
+  if(fly.on)flyStop();
+  if(calcOpen())dropCalc();
+  if(remote?.out&&!["home","tapes","desk","power","remote"].includes(name))remote.putBack();
   if(name!=="notepad")notebook?.stop();
   if(name!=="pad")dropPad();
   if(name!=="ibm"&&name!=="contact"&&name!=="pcpower")term.setActive(false);
@@ -719,6 +1271,7 @@ function go(name){
     flyTo("notepad");closePanel();
     if(again&&notebook?.playing)notebook.skip();else notebook?.start(performance.now());
   }
+  else if(name==="remote"){if(remote&&!padOpen())remote.toggle()}
   else if(name==="pad")liftPad();
   else if(name==="power")toggleTv();
   else if(name==="phone"){
@@ -726,6 +1279,25 @@ function go(name){
     flyTo("phone");closePanel();phone?.answer()
   }
   else if(name==="pcpower")togglePc();
+  else if(name==="trophy"){
+    if(snap?.name==="trophy"&&!tween)props?.spinTrophy();
+    else{flyTo("trophy");closePanel();props?.armTrophy()}
+  }
+  else if(name==="recorder"){
+    if(props?.radioOn)props.stopRadio();
+    else if(snap?.name==="recorder"&&!tween)props?.key("rec");
+    else{flyTo("recorder");closePanel();props?.startRadio("rec",true)}
+  }
+  else if(name==="player"){
+    if(snap?.name==="player"&&!tween)deskProps?.togglePlayer();
+    else{flyTo("player");closePanel();deskProps?.togglePlayer(true)}
+  }
+  else if(name==="deskchair")deskProps?.toggleChair();
+  else if(name==="plant")shakePlant();
+  else if(name==="drawer"){
+    if(snap?.name==="drawer"&&!tween){flyTo("home");closePanel()}
+    else{flyTo("drawer");closePanel();deskProps?.setDrawer(true)}
+  }
   else if(name==="clocks"){flyTo("clocks");closePanel()}
   else if(name==="chair"){flyTo(snap?.name==="chair"&&!tween?"home":"chair");closePanel()}
   else if(name==="window"){flyTo(snap?.name==="outside"&&!tween?"home":"outside");closePanel()}
@@ -741,6 +1313,161 @@ document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",(
 $("home-link").addEventListener("click",()=>{if(!document.documentElement.classList.contains("crt-gating"))go("home")});
 let menuIbm="ibm";
 const menuLinks=[...document.querySelectorAll(".menu [data-view]")];let menuCur="";
+// "INCOMING" speech bubble: a white billboard fixed in the room with its tail on the top of the ringing phone, so it stays with the phone when the camera
+// moves. A red phone symbol inside it shakes with the handset. Shown only while the phone rings; clicking it answers the phone.
+const callBubble=(()=>{
+  // Same look as the CREDITS / SOUND buttons: VT323 capitals, cream ink on a dark translucent panel with a thin light border. Rectangular, short tail.
+  const W=512,H=192,SW=0.29,SH=SW*H/W,TIP=[352,180],ICON=[78,62];
+  const bc=document.createElement("canvas");bc.width=W;bc.height=H;const x=bc.getContext("2d");
+  const draw=()=>{
+    x.clearRect(0,0,W,H);x.save();
+    x.beginPath();x.moveTo(12,12);x.lineTo(372,12);x.lineTo(372,116);x.lineTo(352,116);x.lineTo(TIP[0],TIP[1]);x.lineTo(314,116);x.lineTo(12,116);x.closePath();
+    x.shadowColor="rgba(0,0,0,.55)";x.shadowBlur=14;x.shadowOffsetY=4;
+    x.fillStyle="rgba(20,18,24,.88)";x.fill();
+    x.shadowColor="transparent";x.lineJoin="round";x.lineWidth=3;x.strokeStyle="rgba(239,233,220,.55)";x.stroke();
+    x.restore();
+    x.fillStyle="#efe9dc";x.textBaseline="middle";
+    try{x.letterSpacing="5px"}catch{}
+    let fs=64;x.font=fs+"px VT323, ui-monospace, monospace";
+    while(fs>30&&x.measureText("INCOMING").width>226){fs-=2;x.font=fs+"px VT323, ui-monospace, monospace"}   // always fits the box, whichever font is loaded
+    x.fillText("INCOMING",132,66);
+    bt.needsUpdate=true;
+  };
+  const bt=new THREE.CanvasTexture(bc);bt.colorSpace=THREE.SRGBColorSpace;
+  // Red phone receiver symbol (classic handset: curved grip with an earpiece and a mouthpiece).
+  const ic=document.createElement("canvas");ic.width=ic.height=128;{
+    const g=ic.getContext("2d");g.strokeStyle=g.fillStyle="#ff3b27";g.lineCap="round";
+    g.translate(64,64);g.rotate(-0.62);g.translate(-64,-64);
+    g.lineWidth=16;g.beginPath();g.arc(64,92,38,Math.PI*1.2,Math.PI*1.8);g.stroke();
+    for(const ex of [26,102]){g.beginPath();g.roundRect(ex-16,68,32,38,11);g.fill()}
+  }
+  const it=new THREE.CanvasTexture(ic);it.colorSpace=THREE.SRGBColorSpace;
+  const mk=(map)=>new THREE.SpriteMaterial({map,transparent:true,depthTest:false,depthWrite:false,toneMapped:false});
+  const bubble=new THREE.Sprite(mk(bt));bubble.center.set(TIP[0]/W,1-TIP[1]/H);bubble.scale.set(SW,SH,1);bubble.renderOrder=40;
+  const icon=new THREE.Sprite(mk(it));icon.scale.set(0.054,0.054,1);icon.renderOrder=41;
+  bubble.userData.phone="handset";bubble.name="CallBubble";
+  bubble.visible=icon.visible=false;scene.add(bubble,icon);
+  draw();document.fonts?.load("64px VT323").then(draw).catch(()=>{});document.fonts?.ready.then(draw);
+  const tip=new THREE.Vector3(),r=new THREE.Vector3(),u=new THREE.Vector3();
+  return {bubble,get on(){return bubble.visible},
+    update(now,on){
+      if(bubble.visible!==on)bubble.visible=icon.visible=on;
+      if(!on)return;
+      const f=phone.frame;tip.set((f.min.x+f.max.x)/2,f.max.y+0.012,(f.min.z+f.max.z)/2);
+      camera.updateMatrixWorld();r.setFromMatrixColumn(camera.matrixWorld,0);u.setFromMatrixColumn(camera.matrixWorld,1);
+      bubble.position.copy(tip);
+      icon.position.copy(tip).addScaledVector(r,(ICON[0]-TIP[0])/W*SW).addScaledVector(u,(TIP[1]-ICON[1])/H*SH);
+      const k=(now/1000)%3.6,w=reduced||k>1?0:1;
+      icon.material.rotation=w*(0.34*Math.sin(now*0.118)+0.08*Math.sin(now*0.047));
+    }};
+})();
+// Sticky note with every key. The pad of sticky notes on the desk; "?" (or a click on it, or the "? Keys" button) lifts it to the top right of the
+// screen, and ESC puts it back on the desk. Keys pressed while it is open still work: the note stays open until ESC.
+const keysNote=(()=>{
+  const el=$("keys-note"),btn=$("btn-keys");
+  // The pad of sticky notes that was already on the desk (behind the cup, part of the baked Room_Desk mesh) is cut out of the desk and moved to the left,
+  // so it sits just above the notebook, slanted a little. Its own baked colours and shading stay, so it looks like the rest of the room. A line of
+  // handwriting (the guide) is laid over its top sheet and a soft shadow under it; clicking it opens the big note.
+  const holder=new THREE.Group();scene.add(holder);
+  const TARGET=new THREE.Vector3(-0.43,0.72,-2.03),SLANT=-0.2,CEN=new THREE.Vector3(-0.3107,0.72,-2.25),PW=0.1772,PD=0.1216,TOPY=0.7358;
+  let pad=null;
+  const inkCanvas=()=>{
+    const W=1180,H=810,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
+    g.fillStyle="#2b2a33";g.textBaseline="alphabetic";
+    const col1=[["T","Tapes"],["C","Computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair wall"]];
+    const col2=[["L","Desk lamp"],["F","Standing lamp"],["S","Sip coffee"],["U","Calculator"],["I","Spin pencils"],["P","TV on / off"],["O","Computer on / off"],["Q","Music player"],["X","Push chair"],["J","Shake plant"]];
+    const col3=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"],["V","Pick up remote"]];
+    const col4=[["ESC","Put back"],["?","Guide"],["G","Credits"]];
+    const col5=[["A","Trophy"],["D","Radio news"],["Y","Drawer: certificates"]];
+    g.font="700 150px Caveat, cursive";g.save();g.translate(70,160);g.rotate(-0.025);g.fillText("GUIDE",0,0);
+    g.lineWidth=8;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,32);g.quadraticCurveTo(240,18,470,34);g.stroke();g.restore();
+    const row=(k,v,x,y)=>{g.font="700 40px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 40px Caveat, cursive";g.fillText(v,x+Math.max(w+12,80),y)};
+    const head=(t,x,y)=>{g.font="700 36px Caveat, cursive";g.fillStyle="#7a2b14";g.fillText(t,x,y);g.fillStyle="#2b2a33"};
+    g.save();g.rotate(0.012);
+    head("GO TO",70,262);col1.forEach((r,i)=>row(r[0],r[1],70,316+i*50));
+    head("ON THE DESK",340,262);col2.forEach((r,i)=>row(r[0],r[1],340,316+i*50));
+    head("AT THE TV",660,262);col3.forEach((r,i)=>row(r[0],r[1],660,316+i*50));
+    head("ALSO",660,620);col5.forEach((r,i)=>row(r[0],r[1],660,670+i*46));
+    head("ANYWHERE",940,262);col4.forEach((r,i)=>row(r[0],r[1],940,316+i*50));
+    g.restore();
+    const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
+  };
+  const ink=inkCanvas();
+  function attach(src){
+    if(pad||!src)return;
+    const g=src.geometry,P=g.attributes.position,N=g.attributes.normal,UV=g.attributes.uv,I=g.index;if(!I||!UV||!N)return;
+    src.updateWorldMatrix(true,false);const M=src.matrixWorld,NM=new THREE.Matrix3().getNormalMatrix(M);
+    const ia=I.array,keep=[],take=[],v=new THREE.Vector3();
+    for(let t=0;t<ia.length;t+=3){
+      let inb=true;
+      for(let k=0;k<3;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);if(v.x<-0.4008||v.x>-0.2205||v.y<0.7192||v.y>0.7358||v.z<-2.3112||v.z>-2.1888)inb=false}
+      (inb?take:keep).push(ia[t],ia[t+1],ia[t+2]);
+    }
+    if(take.length<30||take.length>900){console.warn("sticky pad: triangles not found",take.length/3);return}
+    const n=take.length,pos=new Float32Array(n*3),nor=new Float32Array(n*3),uvs=new Float32Array(n*2),w=new THREE.Vector3();
+    for(let i=0;i<n;i++){w.fromBufferAttribute(P,take[i]).applyMatrix4(M).sub(CEN);pos[i*3]=w.x;pos[i*3+1]=w.y;pos[i*3+2]=w.z;
+      w.fromBufferAttribute(N,take[i]).applyMatrix3(NM).normalize();nor[i*3]=w.x;nor[i*3+1]=w.y;nor[i*3+2]=w.z;
+      uvs[i*2]=UV.getX(take[i]);uvs[i*2+1]=UV.getY(take[i])}
+    const gp=new THREE.BufferGeometry();
+    gp.setAttribute("position",new THREE.BufferAttribute(pos,3));gp.setAttribute("normal",new THREE.BufferAttribute(nor,3));gp.setAttribute("uv",new THREE.BufferAttribute(uvs,2));
+    g.setIndex(new THREE.BufferAttribute(new ia.constructor(keep),1));
+    const pm=src.material.clone();pm.onBeforeCompile=src.material.onBeforeCompile;pm.customProgramCacheKey=src.material.customProgramCacheKey;
+    pm.emissive=pm.emissive.clone().setRGB(1.05,1.0,0.32);   // the baked pad is cream; tinted so it is the same yellow as the opened note
+    pad=new THREE.Mesh(gp,pm);pad.frustumCulled=false;pad.name="KeysNote";pad.userData.keysNote=true;holder.add(pad);
+    const top=TOPY-CEN.y;
+    const sheet=new THREE.Mesh(new THREE.PlaneGeometry(PW-0.012,(PW-0.012)*810/1180),new THREE.MeshBasicMaterial({map:ink.t,transparent:true,opacity:.86,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+    sheet.rotation.x=-Math.PI/2;sheet.position.set(0.0005,top+0.0004,0.002);sheet.renderOrder=3;holder.add(sheet);
+    // soft contact shadow on the desk around the moved pad (the old shadow is painted out of the desk's lightmap)
+    const sc=document.createElement("canvas");sc.width=512;sc.height=384;const sx=sc.getContext("2d");
+    sx.shadowColor="rgba(20,10,0,.6)";sx.shadowBlur=34;sx.shadowOffsetX=1000;sx.fillStyle="#000";sx.fillRect(110-1000,86,292,212);
+    const sh=new THREE.Mesh(new THREE.PlaneGeometry(PW*1.45,PW*1.45*384/512),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+    sh.rotation.x=-Math.PI/2;sh.position.set(0.004,0.0003,-0.003);sh.renderOrder=2;holder.add(sh);
+    holder.position.copy(TARGET);holder.rotation.y=SLANT;
+  }
+  let open=false,anim=null,lifted=false;const proj=new THREE.Vector3();
+  const home=()=>{camera.updateMatrixWorld();proj.copy(holder.position);proj.y+=0.02;proj.project(camera);
+    return {x:Math.max(0,Math.min(innerWidth,(proj.x+1)/2*innerWidth)),y:Math.max(0,Math.min(innerHeight,(1-proj.y)/2*innerHeight))}};
+  const away=()=>{const r=el.getBoundingClientRect(),p=home();
+    return `translate(${(p.x-(r.left+r.width/2)).toFixed(1)}px,${(p.y-(r.top+r.height/2)).toFixed(1)}px) scale(.1) rotate(-12deg)`};
+  const REST="rotate(-1.2deg)",ms=reduced?0:520;
+  // Largest writing that still fits the square without a scroll bar, whichever font the browser ends up with.
+  function fit(){
+    el.style.fontSize="";let fs=parseFloat(getComputedStyle(el).fontSize)*1.14;el.style.fontSize=fs+"px";
+    for(let i=0;i<30&&(el.scrollHeight>el.clientHeight+1||el.scrollWidth>el.clientWidth+1);i++){fs*=0.97;el.style.fontSize=fs+"px"}
+  }
+  document.fonts?.ready.then(()=>{if(open)fit()});
+  function show(){
+    if(open)return;open=true;lifted=true;btn.setAttribute("aria-expanded","true");   // the pad leaves the desk: the plain baked desk shows underneath
+    anim?.cancel();el.hidden=false;fit();
+    anim=el.animate([{transform:away(),opacity:0},{transform:REST,opacity:1}],{duration:ms,easing:"cubic-bezier(.2,.85,.25,1)"});
+  }
+  function hide(){
+    if(!open)return;open=false;btn.setAttribute("aria-expanded","false");
+    anim?.cancel();
+    const a=anim=el.animate([{transform:REST,opacity:1},{transform:away(),opacity:0}],{duration:ms,easing:"cubic-bezier(.5,0,.8,.3)"});
+    const land=()=>{if(!open){el.hidden=true;lifted=false}};
+    a.onfinish=land;
+    setTimeout(land,ms+120);   // do not depend on the animation finishing (a slow frame must not leave the note up)
+  }
+  const toggle=()=>open?hide():show();
+  el.querySelectorAll("[data-act]").forEach(b=>b.addEventListener("click",()=>{
+    const a=b.dataset.act;
+    if(a==="lamp-desk")toggleLamp("desk");else if(a==="lamp-floor")toggleLamp("floor");else if(a==="sip")sipMug();else if(a==="spin")spinPencils();else if(a==="calc"){hide();openCalc()}
+    else if(a==="credits"){hide();cred.open?cred.hide():cred.show()}else if(a==="esc")hide();else if(a==="guide")hide();
+  }));
+  el.querySelectorAll("[data-vk]").forEach(b=>b.addEventListener("click",()=>vcrDo(b.dataset.vk)));
+  btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
+  // A click anywhere outside the open note puts it back down (and does nothing else).
+  let swallow=0;
+  document.addEventListener("pointerdown",ev=>{
+    if(!open||el.contains(ev.target)||btn.contains(ev.target))return;
+    if(ev.target===canvas&&pick(ev)?.kind==="keys")return;   // the pad toggles itself
+    hide();if(ev.target===canvas)swallow=performance.now();
+  },true);
+  return {swallowed(){const s=swallow&&performance.now()-swallow<1500;swallow=0;return s},holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
+    sync(){holder.visible=!lifted}};   // part of the desk from the first frame, also behind the loading screen
+})();
+function syncCall(now){callBubble.update(now,false)   /* INCOMING bubble removed on request */}
 function syncMenu(){
   const cur=padOpen()?"pad":term.active?menuIbm:"";
   if(cur===menuCur)return;menuCur=cur;
@@ -791,9 +1518,18 @@ addEventListener("keydown",e=>{
   else if(k==="w")go("window");
   else if(vcrKey(e,k))e.preventDefault();
   else if(k==="p")go("power");
+  else if(k==="o"&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go("pcpower");
+  else if(k==="g"&&!term.active&&!padOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){cred.open?cred.hide():cred.show()}
+  else if((k==="a"||k==="d")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go(k==="a"?"trophy":"recorder");
+  else if((k==="q"||k==="x"||k==="j"||k==="y")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go(k==="q"?"player":k==="x"?"deskchair":k==="j"?"plant":"drawer");
   else if(k==="h")go("phone");
+  else if(k==="v")go("remote");
   else if(k==="k")go("clocks");
-  else if(k==="escape"){if(creditsOpen())closeCredits();else go("home")}
+  else if((k==="l"||k==="f"||k==="s"||k==="u"||k==="i")&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){
+    if(k==="s")sipMug();else if(k==="u")openCalc();else if(k==="i")spinPencils();else toggleLamp(k==="l"?"desk":"floor");
+  }
+  else if(k==="?"){if(!document.documentElement.classList.contains("crt-gating"))keysNote.toggle()}
+  else if(k==="escape"){if(deskProps?.certOpen)deskProps.hideCert();else if(keysNote.open)keysNote.hide();else if(remote?.out)remote.putBack();else if(creditsOpen())closeCredits();else go("home")}
 });
 
 class QuietAmbience extends Ambience{
@@ -823,11 +1559,28 @@ function moveHint(h,ev){
 // Every clickable thing says what a click does, in the hint that follows the cursor.
 function tipFor3d(h){
   switch(h.kind){
+    case"keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
     case"tapes":return "CLICK TO PLAY THIS TAPE: "+TAPE_INFO[h.idx].title;
+    case"pencils":return "CLICK TO SPIN THE PENCILS";
+    case"player":return deskProps?.musicOn?"CLICK TO STOP THE MUSIC · KEY Q":"CLICK TO PLAY SOME RETRO MUSIC · KEY Q";
+    case"chair":return "CLICK TO PUSH THE CHAIR IN OR PULL IT OUT · KEY X";
+    case"plant":return "CLICK TO SHAKE THE LEAVES · KEY J";
+    case"drawer":return deskProps?.drawerOpen?"CLICK TO CLOSE THE DRAWER · KEY Y":"CLICK TO OPEN THE DRAWER: MY CERTIFICATES · KEY Y";
+    case"cert":return "CLICK TO READ: "+deskProps.certName(h.idx).toUpperCase();
+    case"trophy":return snap?.name==="trophy"&&!tween?"CLICK TO SPIN THE CUP · KEY A":"CLICK TO LOOK AT THE TROPHY · KEY A";
+    case"rec":{
+      if(!(snap?.name==="recorder"&&!tween))return "CLICK TO LOOK AT THE RADIO RECORDER · KEY D";
+      const on=props?.radioOn;
+      return h.part==="rec"||h.part==="play"?(on?"THE RADIO IS ON · PRESS STOP TO TURN IT OFF":"CLICK TO TUNE IN THE LIVE NEWS RADIO"):h.part==="stop"?(on?"CLICK TO TURN THE RADIO OFF":"STOP"):h.part==="ff"?"NEXT STATION":h.part==="rew"?"PREVIOUS STATION":(on?"PRESS STOP, OR KEY D, TO TURN THE RADIO OFF":"PRESS THE RED BUTTON TO TUNE IN THE LIVE NEWS");
+    }
+    case"lamp":return "CLICK TO TURN THE "+lamps[h.id].name+(lamps[h.id].on?" OFF":" ON");
+    case"calc":return "CLICK TO USE THE CALCULATOR";
+    case"mug":return mug.left>0?"CLICK TO TAKE A SIP OF COFFEE":"THE MUG IS EMPTY · RELOAD FOR A REFILL";
     case"ibm":return "CLICK TO USE THE COMPUTER";
     case"pad":return "CLICK TO LIFT THE WORK NOTES";
     case"desk":return snap?.name==="desk"?"CLICK TO ZOOM BACK OUT":"CLICK TO ZOOM IN ON THE TV";
     case"vcr":return vcrTip(h.id);
+    case"remote":return h.part==="key"?remoteTip(h.id):(remote.out?"THE REMOTE · CLICK A KEY · ESC OR V PUTS IT BACK":"CLICK TO PICK UP THE REMOTE · KEY V");
     case"notepad":return snap?.name==="notepad"?(notebook?.playing?"CLICK TO FINISH THIS PAGE":"CLICK THE ARROW ON THE PAGE TO TURN IT"):"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT";
     case"edge":return "CLICK OR DRAG RIGHT TO LOOK AT THE CHAIR WALL";
     case"window":return "CLICK TO LOOK AT THE VIEW OUTSIDE THE WINDOW";
@@ -842,7 +1595,7 @@ function tipFor3d(h){
     default:return "CLICK TO OPEN THE NOTEPAD";
   }
 }
-const VIEW_TIPS={chair:"CLICK TO LOOK AT THE CHAIR AND THE RIGHT WALL · KEY R",notepad:"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT · KEY B",outside:"CLICK TO LOOK OUT OF THE WINDOW · KEY W",clocks:"CLICK TO LOOK AT THE CLOCKS · KEY K",phone:"CLICK TO ANSWER THE PHONE · KEY H",tapes:"CLICK TO LOOK AT THE TAPES · KEY T",ibm:"CLICK TO USE THE COMPUTER · KEY C",pad:"CLICK TO LIFT THE WORK NOTES · KEY N",desk:"CLICK TO ZOOM IN ON THE TV · KEY Z",
+const VIEW_TIPS={player:"CLICK TO PLAY SOME RETRO MUSIC · KEY Q",drawer:"CLICK TO OPEN THE DRAWER: MY CERTIFICATES · KEY Y",trophy:"CLICK TO SPIN THE TROPHY · KEY A",recorder:"CLICK TO TUNE THE NEWS RADIO · KEY D",chair:"CLICK TO LOOK AT THE CHAIR AND THE RIGHT WALL · KEY R",notepad:"CLICK TO SEE WHAT I AM WORKING TOWARD NEXT · KEY B",outside:"CLICK TO LOOK OUT OF THE WINDOW · KEY W",clocks:"CLICK TO LOOK AT THE CLOCKS · KEY K",phone:"CLICK TO ANSWER THE PHONE · KEY H",tapes:"CLICK TO LOOK AT THE TAPES · KEY T",ibm:"CLICK TO USE THE COMPUTER · KEY C",pad:"CLICK TO LIFT THE WORK NOTES · KEY N",desk:"CLICK TO ZOOM IN ON THE TV · KEY Z",
   power:()=>(tv.on?"CLICK TO TURN OFF THE TV":"CLICK TO TURN ON THE TV")+" · KEY P"};
 function tipFor(el){
   if(el.id==="pad-scrim")return "CLICK ANYWHERE TO PUT THE PAPER BACK DOWN";
@@ -852,6 +1605,8 @@ function tipFor(el){
   switch(b.id){
     case"pad-close":return "CLICK TO PUT THE PAPER BACK DOWN · ESC";
     case"panel-close":return "CLICK TO CLOSE AND GO BACK TO THE DESK · ESC";
+    case"btn-keys":return "CLICK TO OPEN THE STICKY NOTE WITH ALL THE CONTROLS · KEY ?";
+    case"keys-esc":return "CLICK TO PUT THE NOTE BACK ON THE DESK · ESC";
     case"btn-credits":return "CLICK TO SEE THE CREDITS";
     case"back":return "CLICK TO GO BACK TO THE DESK · ESC";
     case"btn-sound":return audio.rainOn?"CLICK TO TURN THE RAIN SOUND OFF":"CLICK TO TURN THE RAIN SOUND ON";
@@ -882,17 +1637,45 @@ function pick(ev){
   const targets=["Room_Tapes","Room_Station","Room_Desk"].map(n=>meshes[n]).filter(Boolean);
   targets.push(padMesh,tvButton.hit,pcButton.hit,crtHit,windowHit,...VCR);
   if(notebook)targets.push(...notebook.pickMeshes());
+  if(mug.hit)targets.push(mug.hit);
+  if(pencils.hit)targets.push(pencils.hit);
+  if(props)targets.push(...props.pickMeshes());
+  if(deskProps)targets.push(...deskProps.pickMeshes());
+  if(meshes.Room_Plant)targets.push(meshes.Room_Plant);
+  targets.push(...lampHits);if(meshes.Room_Lamp)targets.push(meshes.Room_Lamp);
+  if(calc.group&&!calcOpen())targets.push(calc.body,...calc.keys);
   if(phone)targets.push(...phone.pickMeshes());
+  if(callBubble.on)targets.push(callBubble.bubble);
+  targets.push(...keysNote.pickMeshes());
   if(deck)targets.push(...deck.pickMeshes());
+  if(remote)targets.push(...remote.pickMeshes());
   const hit=ray.intersectObjects(targets,false)[0];
   if(!hit)return null;
   const n=hit.object.name;
+  // a lamp only reacts when nothing solid is in front of it (plant, keepsakes, wall unit); the desk lamp is its own mesh, picked triangle by triangle
+  if(hit.object.userData.lamp||hit.object===meshes.Room_Lamp){
+    const occ=[meshes.Room_Plant,meshes.Room_Keepsakes,meshes.Room_Right_Nook,meshes.Room_Monitor].filter(Boolean);
+    const o=ray.intersectObjects(occ,false)[0];
+    if(o&&o.distance<hit.distance-0.004)return null;
+    return {kind:"lamp",id:hit.object===meshes.Room_Lamp?"desk":hit.object.userData.lamp};
+  }
+  if(hit.object.userData.remote)return {kind:"remote",part:hit.object.userData.remote,id:hit.object.userData.rkey};
   if(hit.object.userData.tape!==undefined)return {kind:"tapes",idx:hit.object.userData.tape};
+  if(hit.object.userData.keysNote)return {kind:"keys"};
   if(hit.object.userData.phone)return {kind:"phone",part:hit.object.userData.phone==="base"&&phone.speakerHit(ray)?"speaker":hit.object.userData.phone};
+  if(n==="MugHit")return {kind:"mug"};
+  if(hit.object.userData.pencils)return {kind:"pencils"};
+  if(hit.object.userData.prop){const pi=props?.info(hit.object)||deskProps?.info(hit.object);if(pi)return pi}
+  if(n==="Room_Plant")return {kind:"plant"};
+  if(hit.object.userData.lamp)return {kind:"lamp",id:hit.object.userData.lamp};
+  if(n==="CalcBody"||n==="CalcKey")return {kind:"calc"};
   if(n==="Pad")return {kind:"pad"};
   if(hit.object.userData.notebook)return {kind:"notepad",nav:notebook?.navAt(hit)};
   if(hit.object.userData.vcr)return {kind:"vcr",id:hit.object.userData.vcr};
-  if(n==="WindowHit")return {kind:"window"};
+  if(n==="WindowHit"){   // not through the plant, the wall unit or the keepsakes in front of the window
+    const o=ray.intersectObjects([meshes.Room_Plant,meshes.Room_Keepsakes,meshes.Room_Right_Nook,meshes.Room_Monitor].filter(Boolean),false)[0];
+    return o&&o.distance<hit.distance?null:{kind:"window"};
+  }
   if(n==="TvPower")return {kind:"power"};
   if(n==="CrtHit")return {kind:"desk"};
   if(n==="PcPower")return {kind:"pcpower"};
@@ -901,7 +1684,7 @@ function pick(ev){
     return idx===null?null:{kind:"tapes",idx};
   }
   if(n==="Room_Station")return {kind:"ibm"};
-  if(Math.hypot(hit.point.x+0.47,hit.point.z+1.84)<0.3&&hit.point.y<0.95)return {kind:"notepad"};
+  if(hit.point.x>-0.66&&hit.point.x<-0.28&&hit.point.z>-1.99&&hit.point.z<-1.69&&hit.point.y<0.76)return {kind:"notepad"};   // only the notebook's own patch of desk (it used to be a 0.3 m circle that took in the mug, pencils, calculator and guide)
   return null;
 }
 const edgeZone=()=>false;
@@ -918,7 +1701,8 @@ canvas.addEventListener("pointermove",ev=>{
 let down=null;
 canvas.addEventListener("pointerdown",ev=>{down={x:ev.clientX,y:ev.clientY}});
 canvas.addEventListener("pointerup",ev=>{
-  if(!down||tween)return;
+  if(keysNote.swallowed()){down=null;return}
+  if(!down||tween||fly.on)return;
   const moved=Math.hypot(ev.clientX-down.x,ev.clientY-down.y);down=null;
   if(moved>6||controls.clickBlocked)return;     // a drag or pinch is never a click
   if(term.active&&pc.on){
@@ -930,11 +1714,25 @@ canvas.addEventListener("pointerup",ev=>{
   }
   if(snap?.name==="outside"){go("home");return}
   const hit=pick(ev);
+  if(remote?.out&&(!hit||hit.kind!=="remote")){remote.putBack();return}   // a click anywhere else puts the held remote back down (and does nothing else)
   if(!hit){if(edgeZone(ev))go("chair");return}
   if(hit.kind==="vcr")vcrDo(hit.id);
+  else if(hit.kind==="remote"){if(hit.part==="key")remoteDo(hit.id);else if(!remote.out)remote.pickUp()}
   else if(hit.kind==="tapes")showTape(hit.idx);
   else if(hit.kind==="notepad"&&snap?.name==="notepad"&&hit.nav!=null)notebook.flip(hit.nav);
+  else if(hit.kind==="keys")keysNote.toggle();
   else if(hit.kind==="phone")phoneClick(hit.part);
+  else if(hit.kind==="mug")sipMug();
+  else if(hit.kind==="pencils")spinPencils();
+  else if(hit.kind==="trophy")go("trophy");
+  else if(hit.kind==="player")go("player");
+  else if(hit.kind==="chair")go("deskchair");
+  else if(hit.kind==="plant")go("plant");
+  else if(hit.kind==="drawer")go("drawer");
+  else if(hit.kind==="cert")deskProps?.showCert(hit.idx);
+  else if(hit.kind==="rec")recClick(hit.part);
+  else if(hit.kind==="lamp")toggleLamp(hit.id);
+  else if(hit.kind==="calc")openCalc();
   else go(hit.kind);
 });
 
@@ -1004,13 +1802,31 @@ function resize(){
 }
 addEventListener("resize",resize);resize();
 
+// The lamp shadow maps (2 point lights x 6 cube faces over the whole room) used to be redrawn on every frame. The shadows only change
+// when a caster moves (tape, phone handset, pencil) or its geometry/visibility changes, so they are redrawn only then. Output is identical.
+renderer.shadowMap.autoUpdate=false;
+const shCasters=[];let shCastT=-1e9,shSig=NaN,shWarm=0;
+function shadowSync(now){
+  if(now-shCastT>500){shCastT=now;shCasters.length=0;scene.traverse(o=>{if(o.isMesh&&o.castShadow)shCasters.push(o)})}
+  let sig=shCasters.length;
+  for(let i=0;i<shCasters.length;i++){
+    const o=shCasters[i];o.updateWorldMatrix(true,false);
+    const e=o.matrixWorld.elements;let h=o.visible?1:0;
+    for(let k=0;k<16;k++)h+=e[k]*(k+1.37);
+    const g=o.geometry;if(g&&g.index)h+=g.index.count*1e-3;
+    sig+=h*(i+1);
+  }
+  if(sig!==shSig||shWarm<90){shSig=sig;shWarm++;renderer.shadowMap.needsUpdate=true}
+}
+
 let tintK=1;
 function frame(now){
   requestAnimationFrame(frame);
   adaptRes(now);
   stepTween(now);
+  if(fly.on)stepFly(now);
   if(controls.enabled)controls.update();
-  stepPad(now);deck?.step(now);cityLife?.step(now/1000);phone?.step(now);notebook?.step(now);stepDeskGone();stepPc(now);term.step(now,reduced);ibmLights.step(now);crtVideo.step(now);
+  stepPad(now);deck?.step(now);remote?.step(now);cityLife?.step(now/1000);phone?.step(now);notebook?.step(now);stepDeskGone();stepPc(now);term.step(now,reduced);ibmLights.step(now);crtVideo.step(now);
   if(gateEl===undefined||gateEl?.isConnected){
     gateEl=document.getElementById("crt-gate");
     if(gateEl){camera.updateMatrixWorld();
@@ -1018,10 +1834,11 @@ function frame(now){
       dispatchEvent(new CustomEvent("crtquad",{detail:q}))}
   }
   crtGlass.uniforms.uTime.value=reduced?0:now/1000;
-  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);syncMenu();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
+  crtLive.uTime.value=reduced?0:now/1000;if(crtScreen.mesh.visible&&now-(crtScreen.last||0)>50){crtScreen.last=now;crtScreen.draw(reduced?0:now)}rainU.uTime.value=reduced?0:now/1000;steamU.uTime.value=reduced?3:now/1000;windU.uTime.value=reduced?0:now/1000;stepTv(now);stepMug(now);stepCalc(now);stepLamps(now);stepPencils(now);props?.step(now);deskProps?.step(now);stepPlantShake(now);syncMenu();syncCall(now);keysNote.sync();if(clock.tex)drawClock(reduced?0:Math.floor((now-clock.t0)/1000));
   vidPass.enabled=crtVideo.active&&tv.off<0.02;
-  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:1)-gradeU.uGrain.value)*0.15;
+  gradeU.uTime.value=reduced?0:now/1000;gradeU.uGrain.value+=((crtVideo.active?0:term.active?0.3:1)-gradeU.uGrain.value)*0.15;bloom.strength+=((term.active?0.08:0.42)-bloom.strength)*0.15;
   tintK+=((document.documentElement.dataset.view==="ibm"?0.12:1)-tintK)*0.06;gradeU.uTint.value=tintK;
+  shadowSync(now);
   composer.render();
 }
 
@@ -1076,6 +1893,9 @@ function setupWind(){
 }
 
 // Plant: leaves and stems sway in the same wind as the curtains. The pot, soil and stones (below y 0.936) stay still.
+const plantShake={value:0};let plantShakeAt=-1e9;
+function shakePlant(){plantShakeAt=performance.now();sfx.rustle();if(reduced)plantShake.value=0.4}
+function stepPlantShake(now){const t=(now-plantShakeAt)/1000,v=t<0?0:Math.min(1,t*6)*Math.max(0,1-t/2.8);plantShake.value=reduced?(t<1.2?0.4:0):v*v*(3-2*v)}
 function setupPlant(){
   const mesh=meshes.Room_Plant,mat=mesh&&mesh.material;if(!mat)return;
   const g=mesh.geometry,pos=g.attributes.position,a=new Float32Array(pos.count),v=new THREE.Vector3();let n=0;
@@ -1090,11 +1910,11 @@ function setupPlant(){
   const prev=mat.onBeforeCompile;
   mat.onBeforeCompile=sh=>{
     if(prev)prev.call(mat,sh);
-    sh.uniforms.uTime=windU.uTime;
-    sh.vertexShader="uniform float uTime;attribute float aSway;\n"+sh.vertexShader.replace("#include <begin_vertex>",`#include <begin_vertex>
+    sh.uniforms.uTime=windU.uTime;sh.uniforms.uShake=plantShake;
+    sh.vertexShader="uniform float uTime,uShake;attribute float aSway;\n"+sh.vertexShader.replace("#include <begin_vertex>",`#include <begin_vertex>
       vec3 wp0=(modelMatrix*vec4(position,1.0)).xyz;float ph=wp0.x*4.1+wp0.z*3.3+wp0.y*1.7;
       float gu=0.55+0.45*sin(uTime*0.43)*sin(uTime*0.29+1.3);
-      vec3 dw=vec3(sin(uTime*1.35+ph)*0.6+sin(uTime*2.7+ph*1.7)*0.25,sin(uTime*1.9+ph*1.3)*0.22,cos(uTime*1.15+ph*0.8)*0.5+0.18)*aSway*0.07*(0.5+0.8*gu);
+      vec3 dw=vec3(sin(uTime*1.35+ph)*0.6+sin(uTime*2.7+ph*1.7)*0.25,sin(uTime*1.9+ph*1.3)*0.22,cos(uTime*1.15+ph*0.8)*0.5+0.18)*aSway*0.07*(0.5+0.8*gu)*(1.0+uShake*3.5)+vec3(sin(uTime*10.0+ph*2.0),sin(uTime*12.5+ph),cos(uTime*9.0+ph*1.6))*aSway*0.03*uShake;
       transformed+=transpose(mat3(modelMatrix))*dw;`);
   };
   mat.needsUpdate=true;
@@ -1135,6 +1955,8 @@ const VW=1.075,VH=1.09;
 const vidScene=new THREE.Scene();
 const vidPass=new RenderPass(vidScene,camera);vidPass.clear=false;vidPass.clearDepth=false;vidPass.enabled=false;
 composer.insertPass(vidPass,composer.passes.indexOf(gradePass));
+const calcPass=new RenderPass(calcScene,camera);calcPass.clear=false;calcPass.clearDepth=true;calcPass.enabled=false;
+composer.insertPass(calcPass,composer.passes.indexOf(gradePass));
 const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},uNs:{value:0},uTime:{value:0}},transparent:true,depthTest:false,depthWrite:false,
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`uniform sampler2D uVid;uniform float uK,uNs,uTime;varying vec2 vUv;
@@ -1151,7 +1973,7 @@ const vidMat=new THREE.ShaderMaterial({uniforms:{uVid:{value:null},uK:{value:0},
       vd=mix((vd+bl)*.5,clamp(vd+(vd-bl)*.45,0.,1.),ed);
       vd=max(vd-.012,0.);
       vec3 nz=vec3(h(floor(vUv*vec2(160.,120.))+floor(uTime*30.)))*.85;
-      gl_FragColor=vec4(mix(nz,mix(vd,nz,uNs),step(.5,uK)),mask*clamp(uK+uNs,0.,1.));
+      gl_FragColor=vec4(mix(nz,mix(vd,nz,uNs),step(.5,uK)),mask*smoothstep(0.,.08,clamp(uK+uNs,0.,1.)));
     }`});
 {const mesh=new THREE.Mesh(new THREE.PlaneGeometry(CRT.w*VW,CRT.h*VH),vidMat);mesh.position.set(CRT.cx,CRT.cy,CRT.z+0.004);vidScene.add(mesh)}
 
@@ -1165,16 +1987,18 @@ const crtVideo=(()=>{
   vidMat.uniforms.uVid.value=tex;
   const blackTex=new THREE.DataTexture(new Uint8Array([0,0,0,255]),1,1);blackTex.needsUpdate=true;
   const buffered=()=>{if(!v.duration||!isFinite(v.duration))return 0;let e=0;for(let i=0;i<v.buffered.length;i++)if(v.buffered.start(i)<=0.6)e=Math.max(e,v.buffered.end(i));return Math.min(1,e/v.duration)};
-  let started=false,armed=true,loadAt=0,shown=0,unlocked=false;
+  let started=false,armed=true,loadAt=0,shown=0,unlocked=false,stallT=0;
   let want=0,k=0,burst=0,held=false,cur=-1,last=performance.now(),away=false,userPaused=false;
   const api={onEnd:null,get paused(){return v.paused},get userMuted(){return userMute},get playing(){return cur>=0&&want>0},get active(){return vidMat.uniforms.uK.value>0.01||vidMat.uniforms.uNs.value>0.01}};
   v.addEventListener("ended",()=>{const done=cur;want=0;burst=1;api.onEnd?.(done)});
-  let userMute=false;
+  let userMute=false,slowMo=false;
+  const dk={t:0,base:1};
   const muted=()=>soundBtn.getAttribute("aria-pressed")!=="true"||onComputer()||userMute||phoneQuiet;
   Object.assign(api,{
     play(i,go=true){
       cur=i;started=false;armed=go;shown=0;loadAt=performance.now();
       k=1;burst=0;vidMat.uniforms.uVid.value=blackTex;vidMat.uniforms.uK.value=1;vidMat.uniforms.uNs.value=0;crtScreen.mesh.visible=false;
+      slowMo=false;v.defaultPlaybackRate=v.playbackRate=1;
       v.pause();v.src=VIDEOS[i];v.muted=muted();want=1;userPaused=false;
     },
     // Phones allow sound only on a media element a tap has already played, so the first tap plays and pauses it silently.
@@ -1189,6 +2013,11 @@ const crtVideo=(()=>{
     away(on){away=on;if(on){if(started)v.pause()}else if(cur>=0&&want&&started&&v.paused&&!held&&!userPaused)v.play().catch(()=>{})},
     restart(){if(cur<0||!started)return false;v.currentTime=0;if(v.paused)v.play().catch(()=>{});return true},
     toggleMute(){userMute=!userMute;return userMute},
+    seek(d){if(cur<0||!started||!isFinite(v.duration))return null;v.currentTime=Math.max(0,Math.min(v.duration-0.3,v.currentTime+d));if(v.paused&&!userPaused&&!held&&!away)v.play().catch(()=>{});return v.currentTime},
+    toggleSlow(){if(cur<0||!started)return null;slowMo=!slowMo;v.defaultPlaybackRate=v.playbackRate=slowMo?0.5:1;return slowMo},
+    resume(){if(cur<0||!want||!started)return false;userPaused=false;slowMo=false;v.defaultPlaybackRate=v.playbackRate=1;if(v.paused)v.play().catch(()=>{});return true},
+    get slow(){return slowMo},get time(){return cur>=0?v.currentTime:0},get rate(){return v.playbackRate},get started(){return started},get vpaused(){return v.paused},
+    duck(ms){if(!dk.t)dk.base=v.volume;v.volume=dk.base*0.5;clearTimeout(dk.t);dk.t=setTimeout(()=>{v.volume=dk.base;dk.t=0},ms)},
     cycleVolume(){v.volume=v.volume>0.8?0.6:v.volume>0.5?0.3:1;return v.volume},
     hold(on){held=on;if(on)v.pause();else if(cur>=0&&want&&started&&v.paused&&!away)v.play().catch(()=>{})},
     step(now){
@@ -1205,14 +2034,15 @@ const crtVideo=(()=>{
           v.play().then(()=>{v.muted=muted()}).catch(e=>console.warn("video blocked",e));
         }
       }
-      const ready=(started?v.readyState>=2:true)&&!held;
+      if(started&&v.readyState<2)stallT+=dt;else stallT=0;
+      const ready=(started?(v.readyState>=2||stallT<0.4):true)&&!held;
       const goal=want&&ready?1:0;
       k+=(goal-k)*Math.min(1,dt*(reduced?60:3.2));
       if(!want&&k<0.02&&cur>=0){v.pause();cur=-1}
       burst=Math.max(0,burst-dt/0.75);
       const ns=reduced?0:Math.sin(Math.min(1,burst)*Math.PI)*0.85*(want?1:Math.max(.4,k));
       vidMat.uniforms.uK.value=k;vidMat.uniforms.uNs.value=ns;vidMat.uniforms.uTime.value=now/1000;
-      osd.fade(k);crtScreen.mesh.visible=k<0.97;
+      osd.fade(k>0.02?1:0);crtScreen.mesh.visible=(k+ns)<0.08;
     }
   });
   return api;
@@ -1243,6 +2073,7 @@ function setupTapes(){
           totalEmissiveRadiance=mix(totalEmissiveRadiance,plastic,darkW);`);
     };
     mt.customProgramCacheKey=()=>"tape-plastic";
+    lampDim(mt,"tape");
     mats.push(mt);envReady.then(t=>{mt.envMap=t;mt.needsUpdate=true});
     return mt;
   };
@@ -1253,7 +2084,11 @@ function setupTapes(){
 for(const ev of ["touchend","click","keydown"])addEventListener(ev,()=>crtVideo.unlock(),{once:true,capture:true});
   logoMeshes.forEach(([mesh,name])=>deck.adoptLogo(mesh,name));
   addIntroTape(matFor);
-  try{phone=createPhone({source:src,scene,reduced,soundOn:()=>soundBtn.getAttribute("aria-pressed")==="true",onState:m=>{if(m==="speaker")phoneQuiet=true}});if(phone)buildViews()}catch(e){console.warn("phone failed",e)}
+  try{phone=createPhone({source:src,scene,reduced,soundOn:()=>soundBtn.getAttribute("aria-pressed")==="true",onState:m=>{phoneQuiet=m==="speaker"}});if(phone)buildViews()}catch(e){console.warn("phone failed",e)}
+  if(!new URLSearchParams(location.search).has("noremote"))try{
+    // the remote keeps the room's own material, so on the desk it looks exactly as it did; the legend overlay gets the same lamp dimming
+    remote=createRemote({source:src,material:src.material,camera,reduced,onChange:remoteChanged,decorate:mt=>lampDim(mt,"Room_Tapes")});
+  }catch(e){console.warn("remote failed",e)}
   console.log("tape deck",deck.parts.map(q=>q.holder.children.length).join(","));
 }
 // Twelfth tape: the intro film. It sits on top of the right-hand stack and carries its own spine label.
@@ -1288,11 +2123,17 @@ function addIntroTape(matFor){
   }
   q.holder.add(lab);
 }
-addEventListener("crt-enter",()=>setTimeout(()=>{
-  if(!deck||deck.inVcr>=0||crtVideo.playing||padOpen())return;
-  if(!tv.on)setTv(true);
-  crtVideo.play(11);
-},reduced?0:900));
+// After the gate opens the name screen stays up for 6 seconds (counted from when the gate has faded away), then the intro film starts.
+// The film is fetched during that time so it can start the moment the name screen ends.
+const NAME_HOLD=6000,GATE_FADE=1000;
+addEventListener("crt-enter",()=>{
+  try{fetch(VIDEOS[11],{cache:"force-cache"}).then(r=>r.blob()).catch(()=>{})}catch{}
+  setTimeout(()=>{
+    if(!deck||deck.inVcr>=0||crtVideo.playing||padOpen())return;
+    if(!tv.on)setTv(true);
+    crtVideo.play(11);
+  },NAME_HOLD+(reduced?0:GATE_FADE));
+});
 function showTape(idx,{fly=true}={}){
   if(fly&&!padOpen())flyTo("home");
   if(!deck)return;
@@ -1389,6 +2230,50 @@ function vcrDo(id){
   if(id==="mute"){nudge(crtVideo.toggleMute()?"VIDEO MUTED":"VIDEO SOUND ON");return}
   if(id==="vol"){nudge("VOLUME "+Math.round(crtVideo.cycleVolume()*100)+"%")}
 }
+// The remote on the right: every key does what the matching control on the recorder does (plus a few the recorder does not have).
+const REMOTE_TIPS={power:"TV POWER",eject:"EJECT THE TAPE",play:"PLAY / RESUME (BACK TO NORMAL SPEED)",pause:"PAUSE / RESUME",stop:"STOP THE VIDEO",rew:"REWIND TO THE START OF THE VIDEO",ff:"FAST FORWARD 10 SECONDS",rec:"REPLAY THE LAST 10 SECONDS",
+  timer:"SLOW MOTION ON / OFF",menu:"TV VOLUME",chnext:"CHANNEL UP: NEXT TAPE",chprev:"CHANNEL DOWN: PREVIOUS TAPE",tv:"ZOOM IN ON THE TV",plus10:"TAPES 10, 11 AND 12","0":"MUTE THE VIDEO SOUND"};
+function remoteTip(id){
+  if(/^[1-9]$/.test(id)){const i=+id-1;return i<TAPE_INFO.length?"PLAY TAPE "+id+": "+TAPE_INFO[i].title:"NO TAPE ON CHANNEL "+id}
+  if(id==="0")return crtVideo.userMuted?"TURN THE VIDEO SOUND BACK ON":"MUTE THE VIDEO SOUND";
+  if(id==="pause")return vcrTip("pause");
+  return REMOTE_TIPS[id]||"";
+}
+function remotePlay(){
+  if(!deck)return;
+  if(!tv.on)setTv(true);
+  if(crtVideo.playing){const was=crtVideo.paused||crtVideo.slow;crtVideo.resume();nudge(was?"PLAYING":"ALREADY PLAYING");return}
+  const i=deck.inVcr>=0?deck.inVcr:PLAY_ORDER[0];
+  if(deck.inVcr===i){crtVideo.play(i,true);osd.show(i);nudge("PLAYING")}else showTape(i,{fly:false});
+}
+function remoteDo(id){
+  if(!deck)return;
+  sfx.type("key");
+  const cur=deck.inVcr;
+  if(id==="power"){toggleTv();nudge(tv.on?"TV ON":"TV OFF");return}
+  if(id==="eject"){vcrDo("eject");return}
+  if(id==="play"){remotePlay();return}
+  if(id==="pause"){vcrDo("pause");return}
+  if(id==="stop"){if(crtVideo.playing){crtVideo.stop();nudge("STOPPED")}else nudge("NOTHING IS PLAYING");return}
+  if(id==="rew"){vcrDo("rewind");return}
+  if(id==="ff"||id==="rec"){const r=crtVideo.seek(id==="ff"?10:-10);nudge(r===null?"NOTHING IS PLAYING":id==="ff"?"FAST FORWARD 10 SECONDS":"REPLAY: BACK 10 SECONDS");return}
+  if(id==="timer"){const r=crtVideo.toggleSlow();nudge(r===null?"NOTHING IS PLAYING":r?"SLOW MOTION":"NORMAL SPEED");return}
+  if(id==="menu"){vcrDo("vol");return}
+  if(id==="chnext"||id==="chprev"){vcrDo(id==="chnext"?"next":"prev");return}
+  if(id==="tv"){go("desk");return}
+  if(id==="0"){vcrDo("mute");return}
+  if(id==="plus10"){const a=[9,10,11].filter(i=>i<TAPE_INFO.length),n=a[(a.indexOf(cur)+1)%a.length];if(!tv.on)setTv(true);showTape(n,{fly:false});return}
+  if(/^[1-9]$/.test(id)){const i=+id-1;if(i<TAPE_INFO.length){if(!tv.on)setTv(true);showTape(i,{fly:false})}else nudge("NO TAPE ON CHANNEL "+id)}
+}
+if(new URLSearchParams(location.search).has("dbg"))window.__dbg={camera,get remote(){return remote},get deck(){return deck},get video(){return crtVideo},tv,vcrDo,remoteDo,get snap(){return snap},
+  keyXY:id=>{const o=remote.holder.getObjectByName("RemoteKey_"+id);camera.updateMatrixWorld();const v=o.getWorldPosition(new THREE.Vector3()).project(camera);const r=canvas.getBoundingClientRect();return [r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height]},
+  bodyXY:()=>{const v=remote.holder.position.clone().project(camera);const r=canvas.getBoundingClientRect();return [r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height]}};
+const remoteBtn=(()=>{const b=document.createElement("button");b.type="button";b.id="remote-back";b.hidden=true;b.textContent="PUT THE REMOTE BACK · ESC";document.body.append(b);b.addEventListener("click",()=>remote?.putBack());return b})();
+function remoteChanged(s){
+  remoteBtn.hidden=!(s==="held");
+  document.documentElement.classList.toggle("remote-out",s==="up"||s==="held");
+  if(s==="up"||s==="down")sfx.type("enter");
+}
 document.querySelectorAll("[data-vcr]").forEach(b=>b.addEventListener("click",()=>vcrDo(b.dataset.vcr)));
 function vcrKey(e,k){
   if(term.active||padOpen()||creditsOpen()||document.getElementById("crt-gate")||/^(button|a|input)$/i.test(document.activeElement?.tagName||""))return false;
@@ -1402,6 +2287,7 @@ function setTv(on){
 }
 function toggleTv(){setTv(!tv.on)}
 function stepDeskGone(){
+  {const now=performance.now(),k=1-Math.exp(-Math.min(.5,(now-(stepDeskGone.t2||now))/1000)*7);stepDeskGone.t2=now;DG.h.value+=((remote&&remote.shadowGone?1:0)-DG.h.value)*k}
   if(!deck||TAPES.length<11)return;
   const set=(u,k)=>{const b=TAPES[k].box;u.set(b.min.x,b.max.x,b.min.z,b.max.z)};
   set(DG.a.value,5);set(DG.b.value,10);
@@ -1422,8 +2308,16 @@ function stepTv(now){
 }
 
 const ibmLights=addIbmLights(scene);
-const term=makeIbmTerminal({scene,position:[-2.7573,0.873,-1.1926],size:[0.283,0.208],rotationY:1.2896,onType:k=>sfx.type(k),onOpenLink:href=>{if(href.startsWith("mailto:"))location.href=href;else window.open(href,"_blank","noopener")}});
-addEventListener("keydown",e=>{if(e.metaKey||e.ctrlKey||e.altKey||document.getElementById("crt-gate"))return;if(term.onKey(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
+// OPTIONS screen on the computer: "lofi" opens the lo-fi dialog, "sound" reads or toggles the sound button
+function optionHook(id,toggle){
+  if(id==="lofi"){if(toggle&&!lofiDlg.open){term.setActive(false);lofiDlg.showModal()}return ""}
+  if(id==="sound"){const b=$("btn-sound");if(toggle)b.click();return b.getAttribute("aria-pressed")==="true"?"on":"off"}
+  return "";
+}
+const term=makeIbmTerminal({scene,position:[-2.7573,0.873,-1.1926],size:[0.283,0.208],rotationY:1.2896,onType:k=>sfx.type(k),onExit:()=>go("home"),onDebug:()=>flyStart(),onOption:optionHook,onOpenLink:href=>{if(href.startsWith("mailto:"))location.href=href;else window.open(href,"_blank","noopener")}});
+addEventListener("keydown",e=>{if(e.metaKey||e.altKey||document.getElementById("crt-gate")||lofiDlg.open)return;if(e.ctrlKey&&!(term.active&&/^c$/i.test(e.key)))return;if(term.onKey(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
+addEventListener("keyup",e=>term.onKeyUp(e),true);
+addEventListener("blur",()=>term.releaseKeys());
 
 // COMPUTER power: its red monitor button (PC_MonPwrButton, x -2.689, y .738..755, z -1.334..-1.317) switches the green screen off and on
 // with the same collapse as the TV. The baked glow on the keyboard and desk stays as it is.
@@ -1452,6 +2346,12 @@ function stepPc(now){
   pc.off=Math.min(1,Math.max(0,pc.off+pc.dir*dt/(reduced?0.01:(pc.dir>0?1.0:0.8))));
   pcU.uOff.value=pc.off;
   if(pc.off<=0){pc.dir=0;pcScreen.visible=false}else if(pc.off>=1)pc.dir=0;
+}
+// The cassette recorder: the first click flies in to it; once there its keys work. A click on the red or PLAY key from afar also tunes the radio in (silent until the camera arrives).
+function recClick(part){
+  if(snap?.name==="recorder"&&!tween){if(part==="body"){nudge(props.radioOn?"PRESS STOP, OR KEY D, TO TURN THE RADIO OFF":"PRESS THE RED BUTTON TO TUNE IN THE LIVE NEWS")}else props.key(part);return}
+  flyTo("recorder");closePanel();
+  if(part==="rec"||part==="play")props.startRadio(part,true);
 }
 function phoneClick(part){
   if(!phone||phone.busy)return;
@@ -1498,12 +2398,19 @@ function warm(){
 }
 Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   hideSheet();
+  try{setupMug()}catch(e){console.warn("mug failed",e)}
+  try{setupPencils()}catch(e){console.warn("pencils failed",e)}
+  try{keysNote.attach(meshes.Room_Desk)}catch(e){console.warn("sticky pad failed",e)}
+  try{setupCalc()}catch(e){console.warn("calc failed",e)}
+  try{props=createProps({scene,meshes,reduced,sfx,say:nudge,soundOk:()=>soundBtn.getAttribute("aria-pressed")==="true"&&!onComputer()&&!phoneQuiet,onRadio:on=>crtVideo.away(on)});buildViews()}catch(e){console.warn("props failed",e)}
+  try{deskProps=createDeskProps({scene,meshes,reduced,sfx,say:nudge,lampDim,soundOk:()=>soundBtn.getAttribute("aria-pressed")==="true"&&!onComputer()&&!phoneQuiet,loud:()=>!crtVideo.playing});buildViews()}catch(e){console.warn("desk props failed",e)}
   try{setupTapes()}catch(e){console.warn("tapes failed",e)}
   try{setupWind()}catch(e){console.warn("wind failed",e)}
   try{setupPlant()}catch(e){console.warn("plant failed",e)}
   try{notebook=createNotebook({source:meshes.Room_Desk,scene,reduced,sfx})}catch(e){console.warn("notebook failed",e)}
   try{createFrames({meshes,scene})}catch(e){console.warn("frames failed",e)}
   try{setupClock()}catch(e){console.warn("clock failed",e)}
+  try{setupLamps()}catch(e){console.warn("lamps failed",e)}
   buildViews();
   warm();
   const l=$("loader");l.classList.add("done");

@@ -5,3 +5,10 @@ html.crt-gating #pad-scrim{display:none}
 #pad-close.on{opacity:1}
 #pad-close:hover{color:var(--amber)}
 .pad-sr{position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#calc-scrim{position:fixed;inset:0;z-index:6;background:transparent;cursor:pointer}
+#calc-scrim[hidden],#calc-close[hidden]{display:none}
+html.crt-gating #calc-scrim{display:none}
+#calc-close{position:fixed;z-index:7;right:clamp(1rem,3vw,2.6rem);top:max(1.4rem,env(safe-area-inset-top));padding:.5rem .25rem;font-size:.72rem;letter-spacing:.14em;color:var(--dim);opacity:0;transition:opacity .5s ease .2s}
+#calc-close.on{opacity:1}
+#calc-close:hover{color:var(--amber)}
+@media (max-width:720px){#calc-close{top:calc(110px + env(safe-area-inset-top,0px))}}

@@ -1,0 +1,49 @@
+[
+  {
+    "title": "Getting Started with Deep Learning",
+    "issuer": "NVIDIA",
+    "kind": "certificate",
+    "file": "nvidia-deep-learning.jpg",
+    "aspect": 1.191,
+    "date": "April 2026"
+  },
+  {
+    "title": "AI Automation Engineer internship",
+    "issuer": "Dental-X",
+    "kind": "certificate",
+    "file": "dental-x-internship.jpg",
+    "aspect": 1.4705,
+    "date": "Jun – Aug 2026"
+  },
+  {
+    "title": "Waste Wise Dialogue 1.0 (organizer)",
+    "issuer": "Iqra University",
+    "kind": "certificate",
+    "file": "iqra-waste-wise.jpg",
+    "aspect": 1.5064,
+    "date": "Jan 2024"
+  },
+  {
+    "title": "Speed Programming, IU TECHISS'22",
+    "issuer": "Iqra University",
+    "kind": "certificate",
+    "file": "iqra-speed-programming.jpg",
+    "aspect": 1.4725,
+    "date": "Sep 2022"
+  },
+  {
+    "title": "Content writer and social media manager",
+    "issuer": "Queper",
+    "kind": "certificate",
+    "file": "queper.jpg",
+    "aspect": 1.4145,
+    "date": "Feb 2023"
+  },
+  {
+    "title": "Certificate of Appreciation",
+    "issuer": "SoftSyncDev",
+    "kind": "certificate",
+    "file": "softsyncdev.jpg",
+    "aspect": 1.4705
+  }
+]
