@@ -193,3 +193,43 @@ html.calc-open .bar .ctrl{display:none}
 #cert-box button:hover{background:rgba(244,232,210,.25)}
 #cert-box .cb-x{position:absolute;top:18px;right:18px;font-size:20px}
 @media (max-width:600px){#cert-box .cb-p,#cert-box .cb-n{position:absolute;bottom:18px}#cert-box .cb-p{left:18px}#cert-box .cb-n{right:18px}}
+/* ---- Phones: one shared left/right edge (16px + safe area) for the name, the menu and the bottom rows ---- */
+@media (max-width:720px),(hover:none) and (pointer:coarse){
+  .brand{left:calc(16px + env(safe-area-inset-left,0px));right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));flex-direction:column;align-items:flex-start;flex-wrap:nowrap;gap:2px}
+  .brand h1{font-size:clamp(18px,5.4vw,22px)}
+  .menu{gap:0 2px;flex-wrap:wrap;margin-left:-9px;max-width:calc(100vw - 8px)}
+  .menu button,.menu a{font-size:clamp(20px,5.8vw,26px);letter-spacing:.04em;padding:3px 8px 1px;min-height:40px}
+  .bar{left:calc(16px + env(safe-area-inset-left,0px));right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));gap:8px;align-items:stretch}
+  .touch{margin:0 -16px;padding:2px 16px;scroll-padding:0 16px;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 28px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 28px),transparent 100%)}
+  .touch button{min-height:42px;padding:3px 14px 1px;font-size:clamp(19px,5.4vw,22px)}
+  .bar .toggles{display:flex;flex-wrap:wrap;gap:8px;justify-content:stretch}
+  .bar .toggles li:has(#back){flex:1 0 100%}
+  .bar .toggles li{flex:1 1 0;min-width:0}
+  .bar .toggles button{width:100%;min-height:42px;padding:3px 6px 1px;font-size:clamp(17px,4.8vw,20px);letter-spacing:.02em;white-space:nowrap}
+  #remote-back{left:50%;right:auto;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));font-size:19px;white-space:nowrap}
+}
+@media (hover:none) and (pointer:coarse){.bar .ctrl{display:none}}
+/* ---- Phones held sideways: everything on one line, the room gets the height ---- */
+@media (max-height:500px) and (orientation:landscape) and (hover:none) and (pointer:coarse){
+  .brand{flex-direction:row;align-items:center;gap:0 14px;top:calc(8px + env(safe-area-inset-top,0px))}
+  .brand h1{font-size:17px}
+  .menu{margin-left:0}
+  .menu button,.menu a{font-size:22px;min-height:34px;padding:2px 8px 0}
+  .bar{flex-direction:row;align-items:center;gap:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  .bar>*{min-width:0}
+  .touch{flex:1 1 auto;margin:0;padding:2px 0;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent)}
+  .touch button{min-height:34px;padding:2px 12px 0;font-size:18px}
+  .bar .toggles{flex:0 0 auto}
+  .bar .toggles button{min-height:34px;padding:2px 12px 0;font-size:17px}
+  .bar .toggles li{flex:0 0 auto}
+  #remote-back{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+}
+/* phones: the small cards share the same 16px edge and stay clear of the menu and the bottom rows */
+@media (max-width:720px),(hover:none) and (pointer:coarse){
+  #radio-card,#phone-cap{left:calc(16px + env(safe-area-inset-left,0px));top:calc(92px + env(safe-area-inset-top,0px));max-width:calc(100vw - 32px)}
+  #music-card{left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(142px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px)}
+}
+@media (max-height:500px) and (orientation:landscape) and (hover:none) and (pointer:coarse){
+  #radio-card,#phone-cap{top:calc(56px + env(safe-area-inset-top,0px))}
+  #music-card{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+}
