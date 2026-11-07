@@ -2421,4 +2421,15 @@ Promise.all([roomP,outP,viewP,tapesP]).then(()=>{
   $("loader-text").textContent="FAILED TO LOAD SCENE";
 });
 
-
+// Autoplay tour for screen recordings: only when the address has ?tour=1
+if(new URLSearchParams(location.search).has("tour")){
+  const wp=o=>{const v=new THREE.Vector3();o&&o.getWorldPosition(v);return v};
+  import("./tour.js?v=4").then(m=>m.startTour({THREE,go,flyTo,get VIEWS(){return VIEWS},toggleLamp,sipMug,spinPencils,openCalc,dropCalc,camera,canvas,
+    lampPos:id=>{const l=lamps[id]&&lamps[id].light;return l?l.position.clone().setY(id==="desk"?1.08:1.25):new THREE.Vector3(0,1,-2)},
+    phonePt:()=>{const v=VIEWS.phone&&VIEWS.phone.target;return v?[v.x,v.y,v.z]:[0.6,0.8,-1.9]},
+    plantPt:()=>{const m=meshes&&meshes.Room_Plant;return m?new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()):new THREE.Vector3(1.3,0.6,-2.0)},
+    mugPt:()=>mug.disc?wp(mug.disc):new THREE.Vector3(0.5,0.75,-1.9),
+    calcPt:()=>calc.group?wp(calc.group):new THREE.Vector3(0.3,0.75,-1.9),
+    openCert:i=>deskProps&&deskProps.certs&&deskProps.certs[i]&&deskProps.showCert&&deskProps.showCert(i),
+    closeCert:()=>deskProps&&deskProps.hideCert&&deskProps.hideCert()}));
+}

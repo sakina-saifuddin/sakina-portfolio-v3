@@ -279,3 +279,7 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - Sounds (Web Audio, sfx.js v14): `creak(open)` for the drawer, `drag()` for the chair. Synthesised, NOT yet heard by ear.
 - Chair: classification box widened (x[-1.30,-0.62], z[-1.72,-0.95]) so seat, legs, stretchers and back move together; it is pulled out and turned slightly, and pushed back on the next click.
 - Tested headless (SwiftShader): drawer view and pulled-out chair screenshots, no console errors. Published site not verified; faint baked chair shadow stays on the floor.
+
+## Round: autoplay tour for video (?tour=1)
+- `web/tour.js` (loaded only when the address has `?tour=1`): title card, visible cursor with click ripple, captions, then lamps, phone, trophy, recorder radio, MP3 player, chair, plant, drawer + certificate, mug, calculator, pencils, notebook, end card. Hides the bottom shortcut strip while running.
+- Headless test (slow SwiftShader): ran start to end card with no code errors; cursor aim checked on screenshots. Real-time pacing and sound not verified; the laptop was not connected to the session.
