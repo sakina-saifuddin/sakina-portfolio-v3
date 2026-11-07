@@ -19,7 +19,7 @@ if(loader){
     p:{w:360,h:640,Q:[[95.5,288.6],[225.8,287.7],[225.2,383.4],[96.7,386.5]],BOX:[95,287,132,100]}
   };
   let S=PORT.matches?SD.p:SD.d;
-  const stillSrc=PORT.matches?"crt-still-p.jpg?v=2":matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=6":"crt-still.jpg?v=6";
+  const stillSrc=PORT.matches?"crt-still-p.jpg?v=3":matchMedia("(min-aspect-ratio: 16/9)").matches?"crt-still-wide.jpg?v=7":"crt-still.jpg?v=7";
   const reveal=()=>gate.classList.add("shown");
   const img=new Image();img.onload=reveal;img.onerror=reveal;img.src=stillSrc;
   setTimeout(reveal,4000);

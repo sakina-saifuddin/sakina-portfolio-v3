@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {LookControls} from "./look-controls.js?v=20";
-import {createSfx} from "./sfx.js?v=10";
+import {createSfx} from "./sfx.js?v=11";
 import {createNotebook} from "./notebook.js?v=7";
 import {createFrames} from "./frames.js?v=4";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -250,7 +250,7 @@ function lampDim(m,name){
   m.customProgramCacheKey=()=>"lamp_"+name+"_"+(prevKey?prevKey.call(m):(prev?prev.toString():""));
   m.needsUpdate=true;
 }
-const lampHits=[];
+const lampHits=[],lampHitGeo={};
 function shiftStandingLamp(){
   const m=meshes.Room_Right_Nook;if(!m||!m.geometry.index)return;
   m.updateWorldMatrix(true,false);
@@ -275,16 +275,27 @@ function shiftStandingLamp(){
   }
   pos.needsUpdate=true;g.computeBoundingSphere();g.computeBoundingBox();
   console.log("standing lamp moved:",moved,"vertices by",LS.x,LS.z);
+  // click shape = the lamp's own triangles (a copy in world space), so only the lamp itself reacts, not the space around it
+  const hp=[],near=i=>!bad.has(find(i))&&Math.hypot(w[i*3]-LAMP_AXIS.x,w[i*3+2]-LAMP_AXIS.z)<=0.28;
+  m.updateWorldMatrix(true,false);
+  for(let t=0;t<idx.length;t+=3){
+    if(!(near(idx[t])&&near(idx[t+1])&&near(idx[t+2])))continue;
+    for(let k=0;k<3;k++){v.fromBufferAttribute(pos,idx[t+k]).applyMatrix4(m.matrixWorld);hp.push(v.x,v.y,v.z)}
+  }
+  if(hp.length>=9*30){const hg=new THREE.BufferGeometry();hg.setAttribute("position",new THREE.Float32BufferAttribute(hp,3));hg.computeBoundingSphere();lampHitGeo.floor=hg}
+  else console.warn("standing lamp hit shape not found",hp.length/9);
 }
 function setupLamps(){
   try{shiftStandingLamp()}catch(e){console.warn("lamp shift failed",e)}
   for(const [n,o] of Object.entries(meshes))lampDim(o.material,n);
   const hm=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false});
   const add=(id,geo,x,y,z)=>{const h=new THREE.Mesh(geo,hm);h.position.set(x,y,z);h.name="LampHit_"+id;h.userData.lamp=id;h.frustumCulled=false;scene.add(h);lampHits.push(h)};
-  add("desk",new THREE.BoxGeometry(0.40,0.40,0.50),-0.45,0.95,-2.29);                       // task lamp on the desk
-  add("floor",new THREE.CylinderGeometry(0.27,0.27,0.50,20),LAMP_AXIS.x+LS.x,1.53,LAMP_AXIS.z+LS.z);              // standing lamp: shade
-  add("floor",new THREE.CylinderGeometry(0.08,0.08,1.30,10),LAMP_AXIS.x+LS.x,0.65,LAMP_AXIS.z+LS.z);              // pole
-  add("floor",new THREE.CylinderGeometry(0.20,0.20,0.10,16),LAMP_AXIS.x+LS.x,0.05,LAMP_AXIS.z+LS.z);              // foot
+  // Click shapes follow the lamps' real geometry (the desk lamp is its own mesh, Room_Lamp, picked directly in pick()). The standing lamp uses a
+  // copy of its own triangles plus a slim cylinder for the thin pole. Nothing here covers the space around a lamp.
+  const hm2=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false,side:THREE.DoubleSide});
+  if(lampHitGeo.floor){const h=new THREE.Mesh(lampHitGeo.floor,hm2);h.name="LampHit_floor";h.userData.lamp="floor";h.frustumCulled=false;scene.add(h);lampHits.push(h)}
+  else add("floor",new THREE.CylinderGeometry(0.2,0.2,0.5,20),LAMP_AXIS.x+LS.x,1.53,LAMP_AXIS.z+LS.z);
+  add("floor",new THREE.CylinderGeometry(0.035,0.035,1.30,8),LAMP_AXIS.x+LS.x,0.65,LAMP_AXIS.z+LS.z);
 }
 function toggleLamp(id){
   const L=lamps[id];if(!L)return;
@@ -728,6 +739,7 @@ function sipMug(){
 // face-on in front of the camera; every key works (mouse, touch or keyboard) and the LCD digits are drawn live on a canvas over the glass.
 // ESC, a click outside or PUT DOWN sets it back. The numbers stay until the page is reloaded.
 const CALC={cx:-0.67878,cz:-2.07877,y:0.72,yaw:8*Math.PI/180,L:0.122,ZF:0.010,TANS:0.06667,slope:Math.atan(0.06667)};
+const RZ0=0.0030;
 const CALC_ROWS=[["MC","MR","M-","M+","÷"],["%","7","8","9","×"],["√","4","5","6","−"],["C","1","2","3","+"],["AC","0","00",".","="]];
 const calc={group:null,body:null,keys:[],byLabel:{},mat:null,base:1,lcd:null,lcdCv:null,lcdTex:null,k:0,dir:0,t0:0,from:0,
   s:{disp:"31415.92",acc:null,op:null,fresh:true,mem:0,err:false,last:null}};
@@ -755,12 +767,12 @@ function setupCalc(){
     if(!mine){keep.push(ia[t],ia[t+1],ia[t+2]);continue}
     nCalc++;
     if(Math.abs(lx)<0.036&&lz>-0.046&&lz<-0.025&&ly>0.01963)continue;            // the baked digits "31415.92": dropped, redrawn live
-    const r=Math.round((lz+0.016)/0.0136),cc=Math.round(lx/0.0162);
-    if(r>=0&&r<=4&&cc>=-2&&cc<=2&&Math.abs(lx-cc*0.0162)<0.0081&&Math.abs(lz-(-0.016+r*0.0136))<0.0068&&ly>CALC.ZF+(0.061-lz)*CALC.TANS+0.0002){
+    const r=Math.round((lz+RZ0)/0.0136),cc=Math.round(lx/0.0162);   // RZ0: local z of the first key row is -RZ0 (the baked keys sit one pitch lower than first assumed)
+    if(r>=0&&r<=4&&cc>=-2&&cc<=2&&Math.abs(lx-cc*0.0162)<0.0081&&Math.abs(lz-(-RZ0+r*0.0136))<0.0068&&ly>CALC.ZF+(0.061-lz)*CALC.TANS+0.0002){
       // every corner must lie inside the same key cell: long triangles of the body plate that merely have their centre there stay in the body
       let ok=true;
       for(let k=0;k<3&&ok;k++){v.fromBufferAttribute(P,ia[t+k]).applyMatrix4(M);const ex=v.x-CALC.cx,ez=v.z-CALC.cz,vx=ex*c+ez*s,vz=-ex*s+ez*c;
-        if(Math.abs(vx-cc*0.0162)>0.0095||Math.abs(vz-(-0.016+r*0.0136))>0.0082)ok=false}
+        if(Math.abs(vx-cc*0.0162)>0.0095||Math.abs(vz-(-RZ0+r*0.0136))>0.0082)ok=false}
       if(ok){keys[r*5+cc+2].push(ia[t],ia[t+1],ia[t+2]);continue}
     }
     body.push(ia[t],ia[t+1],ia[t+2]);
@@ -1337,8 +1349,9 @@ const keysNote=(()=>{
     g.fillStyle="#2b2a33";g.textBaseline="alphabetic";
     const col1=[["T","Tapes"],["C","Use computer"],["N","Work notes"],["Z","Zoom TV"],["B","Notebook"],["H","Phone"],["K","Clocks"],["W","Window"],["R","Chair"]];
     const col2=[["L","Desk lamp"],["F","Standing lamp"],["S","Sip coffee"],["U","Calculator"],["I","Spin pencils"],["P","TV on / off"]];
-    const col3=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"]];
-    const col4=[["ESC","Put back"],["?","Guide"]];
+    const col3=[["1-6","Play tape"],["SPACE","Pause"],["[ ]","Prev / next"],["E","Eject"],["M","Mute video"],["V","Pick up remote"]];
+    const col4=[["ESC","Put back"],["?","Guide"],["G","Credits"]];
+    const col5=[["O","Computer on / off"]];
     g.font="700 150px Caveat, cursive";g.save();g.translate(70,160);g.rotate(-0.025);g.fillText("GUIDE",0,0);
     g.lineWidth=8;g.strokeStyle="#2b2a33";g.beginPath();g.moveTo(0,32);g.quadraticCurveTo(240,18,470,34);g.stroke();g.restore();
     const row=(k,v,x,y)=>{g.font="700 46px Caveat, cursive";g.fillText(k,x,y);const w=g.measureText(k).width;g.font="600 46px Caveat, cursive";g.fillText(v,x+Math.max(w+14,96),y)};
@@ -1348,6 +1361,7 @@ const keysNote=(()=>{
     head("ON THE DESK",440,262);col2.forEach((r,i)=>row(r[0],r[1],440,316+i*50));
     head("ANYWHERE",440,640);col4.forEach((r,i)=>row(r[0],r[1],440,690+i*50));
     head("AT THE TV",810,262);col3.forEach((r,i)=>row(r[0],r[1],810,316+i*50));
+    head("ALSO",810,660);col5.forEach((r,i)=>row(r[0],r[1],810,710+i*50));
     g.restore();
     const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return {t,cv,redraw:()=>{}};
   };
@@ -1412,7 +1426,7 @@ const keysNote=(()=>{
   el.querySelectorAll("[data-act]").forEach(b=>b.addEventListener("click",()=>{
     const a=b.dataset.act;
     if(a==="lamp-desk")toggleLamp("desk");else if(a==="lamp-floor")toggleLamp("floor");else if(a==="sip")sipMug();else if(a==="spin")spinPencils();else if(a==="calc"){hide();openCalc()}
-    else if(a==="esc")hide();else if(a==="guide")hide();
+    else if(a==="credits"){hide();cred.open?cred.hide():cred.show()}else if(a==="esc")hide();else if(a==="guide")hide();
   }));
   el.querySelectorAll("[data-vk]").forEach(b=>b.addEventListener("click",()=>vcrDo(b.dataset.vk)));
   btn.addEventListener("click",toggle);$("keys-esc").addEventListener("click",hide);
@@ -1424,7 +1438,7 @@ const keysNote=(()=>{
     hide();if(ev.target===canvas)swallow=performance.now();
   },true);
   return {swallowed(){const s=swallow&&performance.now()-swallow<1500;swallow=0;return s},holder,attach,pickMeshes:()=>pad&&holder.visible?[pad]:[],get open(){return open},show,hide,toggle,
-    sync(){holder.visible=!lifted&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")}};
+    sync(){holder.visible=!lifted}};   // part of the desk from the first frame, also behind the loading screen
 })();
 function syncCall(now){callBubble.update(now,false)   /* INCOMING bubble removed on request */}
 function syncMenu(){
@@ -1477,6 +1491,8 @@ addEventListener("keydown",e=>{
   else if(k==="w")go("window");
   else if(vcrKey(e,k))e.preventDefault();
   else if(k==="p")go("power");
+  else if(k==="o"&&!term.active&&!padOpen()&&!creditsOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating"))go("pcpower");
+  else if(k==="g"&&!term.active&&!padOpen()&&!document.getElementById("crt-gate")&&!document.documentElement.classList.contains("crt-gating")){cred.open?cred.hide():cred.show()}
   else if(k==="h")go("phone");
   else if(k==="v")go("remote");
   else if(k==="k")go("clocks");
@@ -1583,7 +1599,7 @@ function pick(ev){
   if(notebook)targets.push(...notebook.pickMeshes());
   if(mug.hit)targets.push(mug.hit);
   if(pencils.hit)targets.push(pencils.hit);
-  targets.push(...lampHits);
+  targets.push(...lampHits);if(meshes.Room_Lamp)targets.push(meshes.Room_Lamp);
   if(calc.group&&!calcOpen())targets.push(calc.body,...calc.keys);
   if(phone)targets.push(...phone.pickMeshes());
   if(callBubble.on)targets.push(callBubble.bubble);
@@ -1593,6 +1609,13 @@ function pick(ev){
   const hit=ray.intersectObjects(targets,false)[0];
   if(!hit)return null;
   const n=hit.object.name;
+  // a lamp only reacts when nothing solid is in front of it (plant, keepsakes, wall unit); the desk lamp is its own mesh, picked triangle by triangle
+  if(hit.object.userData.lamp||hit.object===meshes.Room_Lamp){
+    const occ=[meshes.Room_Plant,meshes.Room_Keepsakes,meshes.Room_Right_Nook,meshes.Room_Monitor].filter(Boolean);
+    const o=ray.intersectObjects(occ,false)[0];
+    if(o&&o.distance<hit.distance-0.004)return null;
+    return {kind:"lamp",id:hit.object===meshes.Room_Lamp?"desk":hit.object.userData.lamp};
+  }
   if(hit.object.userData.remote)return {kind:"remote",part:hit.object.userData.remote,id:hit.object.userData.rkey};
   if(hit.object.userData.tape!==undefined)return {kind:"tapes",idx:hit.object.userData.tape};
   if(hit.object.userData.keysNote)return {kind:"keys"};
@@ -1604,7 +1627,10 @@ function pick(ev){
   if(n==="Pad")return {kind:"pad"};
   if(hit.object.userData.notebook)return {kind:"notepad",nav:notebook?.navAt(hit)};
   if(hit.object.userData.vcr)return {kind:"vcr",id:hit.object.userData.vcr};
-  if(n==="WindowHit")return {kind:"window"};
+  if(n==="WindowHit"){   // not through the plant, the wall unit or the keepsakes in front of the window
+    const o=ray.intersectObjects([meshes.Room_Plant,meshes.Room_Keepsakes,meshes.Room_Right_Nook,meshes.Room_Monitor].filter(Boolean),false)[0];
+    return o&&o.distance<hit.distance?null:{kind:"window"};
+  }
   if(n==="TvPower")return {kind:"power"};
   if(n==="CrtHit")return {kind:"desk"};
   if(n==="PcPower")return {kind:"pcpower"};
@@ -1613,7 +1639,7 @@ function pick(ev){
     return idx===null?null:{kind:"tapes",idx};
   }
   if(n==="Room_Station")return {kind:"ibm"};
-  if(Math.hypot(hit.point.x+0.47,hit.point.z+1.84)<0.3&&hit.point.y<0.95)return {kind:"notepad"};
+  if(hit.point.x>-0.66&&hit.point.x<-0.28&&hit.point.z>-1.99&&hit.point.z<-1.69&&hit.point.y<0.76)return {kind:"notepad"};   // only the notebook's own patch of desk (it used to be a 0.3 m circle that took in the mug, pencils, calculator and guide)
   return null;
 }
 const edgeZone=()=>false;
@@ -1643,6 +1669,7 @@ canvas.addEventListener("pointerup",ev=>{
   }
   if(snap?.name==="outside"){go("home");return}
   const hit=pick(ev);
+  if(remote?.out&&(!hit||hit.kind!=="remote")){remote.putBack();return}   // a click anywhere else puts the held remote back down (and does nothing else)
   if(!hit){if(edgeZone(ev))go("chair");return}
   if(hit.kind==="vcr")vcrDo(hit.id);
   else if(hit.kind==="remote"){if(hit.part==="key")remoteDo(hit.id);else if(!remote.out)remote.pickUp()}
@@ -1935,7 +1962,7 @@ const crtVideo=(()=>{
     toggleSlow(){if(cur<0||!started)return null;slowMo=!slowMo;v.defaultPlaybackRate=v.playbackRate=slowMo?0.5:1;return slowMo},
     resume(){if(cur<0||!want||!started)return false;userPaused=false;slowMo=false;v.defaultPlaybackRate=v.playbackRate=1;if(v.paused)v.play().catch(()=>{});return true},
     get slow(){return slowMo},get time(){return cur>=0?v.currentTime:0},get rate(){return v.playbackRate},get started(){return started},get vpaused(){return v.paused},
-    duck(ms){if(!dk.t)dk.base=v.volume;v.volume=Math.min(dk.base,0.12);clearTimeout(dk.t);dk.t=setTimeout(()=>{v.volume=dk.base;dk.t=0},ms)},
+    duck(ms){if(!dk.t)dk.base=v.volume;v.volume=dk.base*0.5;clearTimeout(dk.t);dk.t=setTimeout(()=>{v.volume=dk.base;dk.t=0},ms)},
     cycleVolume(){v.volume=v.volume>0.8?0.6:v.volume>0.5?0.3:1;return v.volume},
     hold(on){held=on;if(on)v.pause();else if(cur>=0&&want&&started&&v.paused&&!away)v.play().catch(()=>{})},
     step(now){

@@ -246,3 +246,12 @@ Known pre-existing bug: 6 of 13 tapes open the project of the tape above them (m
 - `crt-still.jpg` (1600x900), `crt-still-wide.jpg` (2100x900), `crt-still-p.jpg` (720x1280) and `crt-still-m.jpg` (900x506) are new captures of the live room's home view (desk, tapes, window photo as they are now). Taken in the cloud with software rendering (SwiftShader), so slightly softer than a real GPU.
 - Desktop/wide glass corners unchanged (re-measured, identical). Portrait corners and box updated in `crt-gate.js` (`SD.p`) because the live portrait framing changed. Cache tags: crt-still v6, wide v6, p v2, m v2, crt-gate.js v11.
 - Checked: loading screen overlay lines up with the TV glass at 1600x900, 2100x900 (rendered) and 360x640. Not checked: the published site.
+
+## Round: calculator keys, click accuracy, sip balance, guide from the start, new keys
+- **Calculator keys**: the key cells were cut one row too high (the picture showed the key above the one pressed; the AC row was not cut as keys at all). Fixed with `RZ0` in `setupCalc`. Headless check at 1000x600: all 25 visible keys now return their own label (before: every key returned the one below, so "9" pressed "6").
+- **Wrong-object clicks**: the desk lamp used a 0.4x0.4x0.5 m invisible box that sat over the calculator, so clicking the calculator toggled the lamp. Now the desk lamp is picked on its own mesh (`Room_Lamp`) triangle by triangle, and the standing lamp on a copy of its own triangles plus a slim pole. A lamp or the window ignores a click when the plant, keepsakes, wall unit or monitor is in front of it. The notebook's desk fallback is its own rectangle instead of a 0.3 m circle (which took in the mug, pencils, calculator and guide).
+- **Outside click**: the guide, the calculator and credits already closed on an outside click; the held remote now also goes back down on any click outside it.
+- **Sip vs video**: sip gain 2.2 -> 1.0; the video is lowered to 50% (was 12%) while the sip plays.
+- **Guide pad** is visible from the first frame (it was hidden behind the loading gate); loading-screen stills recaptured with it.
+- **New keys**: `O` computer on/off, `G` credits; both in the HTML guide and on the sticky pad (also added `V` remote there). Versions: main-pad.js v147, sfx.js v11.
+- Not tested: real speakers (sip/video balance is by gain, not by ear), the published site.

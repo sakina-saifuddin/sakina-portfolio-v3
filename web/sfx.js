@@ -103,7 +103,7 @@ export function createSfx({ enabled }) {
       if (level > 0 && sipBufs.length) {
         let k; do { k = Math.floor(Math.random() * sipBufs.length); } while (sipBufs.length > 1 && k === sipLast); sipLast = k;
         const s = ctx.createBufferSource(); s.buffer = sipBufs[k]; s.playbackRate.value = 0.96 + Math.random() * 0.08;
-        const g = ctx.createGain(); g.gain.value = 2.2; s.connect(g).connect(out); s.start(t);
+        const g = ctx.createGain(); g.gain.value = 1.0; s.connect(g).connect(out); s.start(t);   // balanced against the CRT video (which is only lowered to half while it plays)
         return sipBufs[k].duration / s.playbackRate.value;
       }
       if (level <= 0) { hiss(t, 0.35, 0.3, "bandpass", 1900, 900, 3); tone(t + 0.2, 0.1, "sine", 500, 320, 0.15); return 0.4; }
